@@ -5,7 +5,6 @@ using namespace std;
 
 int main() {
 
-    const int NR_DPUS_PER_RANK = 64;
     const int NR_RANKS = 10;
 
     // To Allocate: identify the number of RANKS you want, or use DPU_ALLOCATE_ALL to allocate all possible.
@@ -29,7 +28,7 @@ int main() {
     pimInterface.ReceiveFromPIM(dpuIDs, "DPU_ID", 0, sizeof(uint64_t), false);
     for (int i = 0; i < nr_of_dpus; i++) {
         uint64_t *id = (uint64_t *)dpuIDs[i];
-        assert(*id == i);
+        assert(*id == (uint64_t)i);
     }
 
     const int BUFFER_SIZE = 1 << 20;

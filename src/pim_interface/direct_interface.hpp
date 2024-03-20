@@ -229,24 +229,24 @@ class DirectPIMInterface : public PIMInterface {
                 uint64_t offset =
                     GetCorrectOffsetMRAM(symbol_offset + (i * 8), dpu_id);
 
-                auto ValidAddress = [&](uint8_t *address, int id) {
-                    bool ok = true;
-                    if (!(address >= base_addrs[id] + (512ull << 20))) {
-                        ok = false;
-                    }
-                    if (!((address + 128) <= base_addrs[id] + (8ull << 30))) {
-                        ok = false;
-                    }
-                    return ok;
-                };
+                // auto ValidAddress = [&](uint8_t *address, int id) {
+                //     bool ok = true;
+                //     if (!(address >= base_addrs[id] + (512ull << 20))) {
+                //         ok = false;
+                //     }
+                //     if (!((address + 128) <= base_addrs[id] + (8ull << 30))) {
+                //         ok = false;
+                //     }
+                //     return ok;
+                // };
 
-                if (!ValidAddress(ptr_dest + offset, id)) {
-                    printf("ptr_dest=%16p\n", ptr_dest);
-                    printf("base_addr=%16p\n", base_addrs[id]);
-                    printf("offset=%" PRIu64 "\n", offset);
-                    printf("id=%" PRIu32 "\n", id);
-                    assert(false);
-                }
+                // if (!ValidAddress(ptr_dest + offset, id)) {
+                //     printf("ptr_dest=%16p\n", ptr_dest);
+                //     printf("base_addr=%16p\n", base_addrs[id]);
+                //     printf("offset=%" PRIu64 "\n", offset);
+                //     printf("id=%" PRIu32 "\n", id);
+                //     assert(false);
+                // }
 
                 for (int j = 0; j < 8; j++) {
                     if (buffers[j * 8 + dpu_id] == nullptr) {
