@@ -1,17 +1,66 @@
 #include <cstdio>
+
 #include "pim_interface_header.hpp"
 using namespace std;
 
 int main() {
 
+    const int NR_DPUS_PER_RANK = 64;
+    const int NR_RANKS = 10;
+
     // To Allocate: identify the number of RANKS you want, or use DPU_ALLOCATE_ALL to allocate all possible.
-    DirectPIMInterface pimInterface(10, "dpu");
+    DirectPIMInterface pimInterface(NR_RANKS, "dpu");
     // DirectPIMInterface pimInterface(DPU_ALLOCATE_ALL, "dpu");
 
-    
-    pimInterface.Launch(false);
-    pimInterface.PrintLog([](int i){return true;});
+    int nr_of_dpus = pimInterface.GetNrOfDPUs();
+    uint8_t **dpuIDs = new uint8_t*[nr_of_dpus];
+    for (int i = 0; i < nr_of_dpus; i++) {
+        dpuIDs[i] = new uint8_t[16]; // two 64-bit integers
+        uint64_t *id = (uint64_t *)dpuIDs[i];
+        *id = i;
+    }
 
-    printf("Hello World!\n");
+    // CPU -> PIM.WRAM : Not supported by direct interface. Use UPMEM interface.
+    pimInterface.SendToPIMByUPMEM(dpuIDs, "DPU_ID", 0, sizeof(uint64_t), false);
+    // following command will cause an error.
+    // pimInterface.SendToPIM(dpuIDs, "DPU_ID", 0, sizeof(uint64_t), false);
+
+    // PIM.WRAM -> CPU : Supported by both direct and UPMEM interface.
+    pimInterface.ReceiveFromPIM(dpuIDs, "DPU_ID", 0, sizeof(uint64_t), false);
+    for (int i = 0; i < nr_of_dpus; i++) {
+        uint64_t *id = (uint64_t *)dpuIDs[i];
+        assert(*id == i);
+    }
+
+    const int BUFFER_SIZE = 1 << 20;
+    uint8_t **dpuBuffer = new uint8_t*[nr_of_dpus];
+    for (int i = 0; i < nr_of_dpus; i++) {
+        dpuBuffer[i] = new uint8_t[BUFFER_SIZE]; // 1 MB buffer
+        memset(dpuBuffer[i], 0x3f, sizeof(uint8_t) * BUFFER_SIZE);
+    }
+
+    // CPU -> PIM.MRAM : Supported by both direct and UPMEM interface.
+    pimInterface.SendToPIM(dpuBuffer, DPU_MRAM_HEAP_POINTER_NAME, 0, BUFFER_SIZE, false);
+
+    // PIM.MRAM -> CPU : Supported by both direct and UPMEM interface.
+    pimInterface.ReceiveFromPIM(dpuBuffer, DPU_MRAM_HEAP_POINTER_NAME, 0, BUFFER_SIZE, false);
+
+    for (int i = 0; i < nr_of_dpus; i++) {
+        for (int j = 0; j < BUFFER_SIZE; j++) {
+            assert(dpuBuffer[i][j] == 0x3f);
+        }
+    }
+
+    // Execute : will call the UPMEM interface.
+    pimInterface.Launch(false);
+    pimInterface.PrintLog([](int i){return (i % 100) == 0;});
+
+    for (int i = 0; i < nr_of_dpus; i++) {
+        delete [] dpuIDs[i];
+        delete [] dpuBuffer[i];
+    }
+    delete [] dpuBuffer;
+    delete [] dpuIDs;
+
     return 0;
 }

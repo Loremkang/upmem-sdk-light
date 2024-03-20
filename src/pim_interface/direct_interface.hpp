@@ -1,26 +1,28 @@
 #pragma once
 
-#include "pim_interface.hpp"
-#include <iostream>
 #include <immintrin.h>
 #include <x86intrin.h>
+
 #include <cinttypes>
+#include <iostream>
+
+#include "pim_interface.hpp"
 // #include "parlay/parallel.h"
 // #include "parlay/internal/sequence_ops.h"
 // #include "timer.hpp"
 
 extern "C" {
+#include <dpu_internals.h>
 #include <dpu_management.h>
 #include <dpu_program.h>
 #include <dpu_rank.h>
+#include <dpu_region_address_translation.h>
 #include <dpu_target_macros.h>
 #include <dpu_types.h>
-#include <dpu_internals.h>
 #include <ufi_config.h>
 
-#include <dpu_region_address_translation.h>
-#include "backends/hw/src/rank/hw_dpu_sysfs.h"
 #include "backends/hw/src/commons/dpu_region_constants.h"
+#include "backends/hw/src/rank/hw_dpu_sysfs.h"
 #include "backends/ufi/include/ufi/ufi.h"
 
 typedef struct _fpga_allocation_parameters_t {
@@ -43,8 +45,7 @@ typedef struct _hw_dpu_rank_allocation_parameters_t {
     bool bypass_module_compatibility;
     /* Backends specific */
     fpga_allocation_parameters_t fpga;
-} * hw_dpu_rank_allocation_parameters_t;
-
+} *hw_dpu_rank_allocation_parameters_t;
 }
 
 class DirectPIMInterface : public PIMInterface {
@@ -306,7 +307,8 @@ class DirectPIMInterface : public PIMInterface {
         auto verify = [](uint32_t wram_word_offset, uint32_t nb_of_words,
                          dpu_rank_t *rank) {
             // verify_wram_access(wram_word_offset, nb_of_words, rank);
-            if (wram_word_offset + nb_of_words > rank->description->hw.memories.wram_size) {
+            if (wram_word_offset + nb_of_words >
+                rank->description->hw.memories.wram_size) {
                 return DPU_ERR_INVALID_WRAM_ACCESS;
             }
             return DPU_OK;
@@ -506,7 +508,7 @@ class DirectPIMInterface : public PIMInterface {
         }
     }
 
-    private:
+   private:
     void byte_interleave_avx2(uint64_t *input, uint64_t *output) {
         __m256i tm = _mm256_set_epi8(
             15, 11, 7, 3, 14, 10, 6, 2, 13, 9, 5, 1, 12, 8, 4, 0,
@@ -559,7 +561,7 @@ class DirectPIMInterface : public PIMInterface {
         _mm512_storeu_si512((__m512i *)output, final);
     }
 
-    protected:
+   protected:
     const int MRAM_ADDRESS_SPACE = 0x8000000;
     dpu_rank_t **ranks;
     hw_dpu_rank_allocation_parameters_t *params;
