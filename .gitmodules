@@ -1,0 +1,3 @@
+[submodule "third_party/upmem-sdk"]
+	path = src/third_party/upmem-sdk
+	url = https://github.com/Loremkang/upmem-sdk.git
