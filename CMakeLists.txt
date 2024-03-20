@@ -35,12 +35,18 @@ set(INCLUDE_DIR
 
 set(EXAMPLE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/examples)
 
+set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
+set(THREADS_PREFER_PTHREAD_FLAG TRUE)
+find_package(Threads REQUIRED)
+
+
 # cpu part for example
 add_executable(example ${EXAMPLE_DIR}/host.cpp)
 target_include_directories(example PUBLIC ${INCLUDE_DIR})
 target_link_directories(example PUBLIC ${UPMEM_SDK_DIR}/lib)
 target_link_libraries(example PUBLIC -ldpu)
-target_compile_options(example PUBLIC -Wall -Wextra -O3 -g -std=c++17 -march=native -pthread)
+target_link_libraries(example PUBLIC Threads::Threads)
+target_compile_options(example PUBLIC -Wall -Wextra -O3 -g -std=c++17 -march=native)
 set_target_properties(example PROPERTIES PUBLIC_HEADER ${CMAKE_CURRENT_SOURCE_DIR}/upmem_direct_c.h)
 
 

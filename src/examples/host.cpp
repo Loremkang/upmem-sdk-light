@@ -31,10 +31,10 @@ int main() {
         assert(*id == (uint64_t)i);
     }
 
-    const int BUFFER_SIZE = 1 << 20;
+    const int BUFFER_SIZE = 4 << 20;
     uint8_t **dpuBuffer = new uint8_t*[nr_of_dpus];
     for (int i = 0; i < nr_of_dpus; i++) {
-        dpuBuffer[i] = new uint8_t[BUFFER_SIZE]; // 1 MB buffer
+        dpuBuffer[i] = new uint8_t[BUFFER_SIZE]; // 4 MB buffer
         memset(dpuBuffer[i], 0x3f, sizeof(uint8_t) * BUFFER_SIZE);
     }
 
@@ -44,11 +44,11 @@ int main() {
     // PIM.MRAM -> CPU : Supported by both direct and UPMEM interface.
     pimInterface.ReceiveFromPIM(dpuBuffer, DPU_MRAM_HEAP_POINTER_NAME, 0, BUFFER_SIZE, false);
 
-    for (int i = 0; i < nr_of_dpus; i++) {
+    parlay::parallel_for(0, nr_of_dpus, [&](size_t i) {
         for (int j = 0; j < BUFFER_SIZE; j++) {
             assert(dpuBuffer[i][j] == 0x3f);
         }
-    }
+    });
 
     // Execute : will call the UPMEM interface.
     pimInterface.Launch(false);

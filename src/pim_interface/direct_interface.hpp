@@ -210,7 +210,7 @@ class DirectPIMInterface : public PIMInterface {
     }
 
     void SendToRankMRAM(uint8_t **buffers, uint32_t symbol_offset,
-                        uint8_t *ptr_dest, uint32_t length, int id) {
+                        uint8_t *ptr_dest, uint32_t length) {
         assert(aligned(symbol_offset, sizeof(uint64_t)));
         assert(aligned(length, sizeof(uint64_t)));
         assert((uint64_t)symbol_offset + length <= MRAM_SIZE);
@@ -227,25 +227,6 @@ class DirectPIMInterface : public PIMInterface {
                 }
                 uint64_t offset =
                     GetCorrectOffsetMRAM(symbol_offset + (i * 8), dpu_id);
-
-                // auto ValidAddress = [&](uint8_t *address, int id) {
-                //     bool ok = true;
-                //     if (!(address >= base_addrs[id] + (512ull << 20))) {
-                //         ok = false;
-                //     }
-                //     if (!((address + 128) <= base_addrs[id] + (8ull << 30))) {
-                //         ok = false;
-                //     }
-                //     return ok;
-                // };
-
-                // if (!ValidAddress(ptr_dest + offset, id)) {
-                //     printf("ptr_dest=%16p\n", ptr_dest);
-                //     printf("base_addr=%16p\n", base_addrs[id]);
-                //     printf("offset=%" PRIu64 "\n", offset);
-                //     printf("id=%" PRIu32 "\n", id);
-                //     assert(false);
-                // }
 
                 for (int j = 0; j < 8; j++) {
                     if (buffers[j * 8 + dpu_id] == nullptr) {
@@ -488,7 +469,7 @@ class DirectPIMInterface : public PIMInterface {
         auto SendToIthRank = [&](size_t i) {
             DPU_ASSERT(dpu_switch_mux_for_rank(ranks[i], true));
             SendToRankMRAM(&buffers_alligned[i * MAX_NR_DPUS_PER_RANK],
-                           symbol_offset, base_addrs[i], length, i);
+                           symbol_offset, base_addrs[i], length);
         };
 
         parlay::parallel_for(
