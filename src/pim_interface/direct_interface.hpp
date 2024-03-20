@@ -7,9 +7,8 @@
 #include <iostream>
 
 #include "pim_interface.hpp"
-// #include "parlay/parallel.h"
-// #include "parlay/internal/sequence_ops.h"
-// #include "timer.hpp"
+#include "parlay/parallel.h"
+#include "parlay/internal/sequence_ops.h"
 
 extern "C" {
 #include <dpu_internals.h>
@@ -386,17 +385,17 @@ class DirectPIMInterface : public PIMInterface {
         uint32_t wram_word_offset = symbol_offset >> 2;
         uint32_t nb_of_words = length >> 2;
 
-        for (size_t i = 0; i < nr_of_ranks; i++) {
-            ReceiveFromRankWRAM(&buffers[i * MAX_NR_DPUS_PER_RANK],
-                                wram_word_offset, nb_of_words, ranks[i]);
-        }
-        // parlay::parallel_for(
-        //     0, nr_of_ranks,
-        //     [&](size_t i) {
-        //         ReceiveFromRankWRAM(&buffers[i * MAX_NR_DPUS_PER_RANK],
-        //                             wram_word_offset, nb_of_words, ranks[i]);
-        //     },
-        //     1, false);
+        // for (size_t i = 0; i < nr_of_ranks; i++) {
+        //     ReceiveFromRankWRAM(&buffers[i * MAX_NR_DPUS_PER_RANK],
+        //                         wram_word_offset, nb_of_words, ranks[i]);
+        // }
+        parlay::parallel_for(
+            0, nr_of_ranks,
+            [&](size_t i) {
+                ReceiveFromRankWRAM(&buffers[i * MAX_NR_DPUS_PER_RANK],
+                                    wram_word_offset, nb_of_words, ranks[i]);
+            },
+            1, false);
     }
 
     void ReceiveFromMRAM(uint8_t **buffers, uint32_t symbol_base_offset,
@@ -411,9 +410,15 @@ class DirectPIMInterface : public PIMInterface {
                                 symbol_offset, base_addrs[i], length);
         };
 
-        for (size_t i = 0; i < nr_of_ranks; i++) {
-            ReceiveFromIthRank(i);
-        }
+        parlay::parallel_for(
+            0, nr_of_ranks,
+            [&](size_t i) {
+                ReceiveFromIthRank(i);
+            },
+            1, false);
+        // for (size_t i = 0; i < nr_of_ranks; i++) {
+        //     ReceiveFromIthRank(i);
+        // }
     }
 
     void ReceiveFromPIM(uint8_t **buffers, std::string symbol_name,
@@ -486,17 +491,17 @@ class DirectPIMInterface : public PIMInterface {
                            symbol_offset, base_addrs[i], length, i);
         };
 
-        // parlay::parallel_for(
-        //     0, nr_of_ranks,
-        //     [&](size_t i) {
-        //         SendToIthRank(i);
-        //     },
-        //     1, false);
+        parlay::parallel_for(
+            0, nr_of_ranks,
+            [&](size_t i) {
+                SendToIthRank(i);
+            },
+            1, false);
 
         // Find physical address for each rank
-        for (uint32_t i = 0; i < nr_of_ranks; i++) {
-            SendToIthRank(i);
-        }
+        // for (uint32_t i = 0; i < nr_of_ranks; i++) {
+        //     SendToIthRank(i);
+        // }
     }
 
     ~DirectPIMInterface() {

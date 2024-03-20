@@ -1,3 +1,6 @@
 [submodule "third_party/upmem-sdk"]
 	path = src/third_party/upmem-sdk
 	url = https://github.com/Loremkang/upmem-sdk.git
+[submodule "src/third_party/parlaylib"]
+	path = src/third_party/parlaylib
+	url = https://github.com/cmuparlay/parlaylib.git

@@ -9,6 +9,10 @@ if(NOT EXECUTABLE_OUTPUT_PATH)
     set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 endif()
 
+set(PARLAYLIB_INCLUDE_HEADER
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/third_party/parlaylib/include
+        )
+
 set(UPMEM_LIB_INCLUDE_HEADER
         ${UPMEM_SRC_DIR}
         ${UPMEM_SRC_DIR}/backends/api/include/api
@@ -26,6 +30,7 @@ set(UPMEM_LIB_INCLUDE_HEADER
 set(INCLUDE_DIR
         ${CMAKE_CURRENT_SOURCE_DIR}/src/pim_interface
         ${UPMEM_LIB_INCLUDE_HEADER}
+        ${PARLAYLIB_INCLUDE_HEADER}
         )
 
 set(EXAMPLE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/examples)
