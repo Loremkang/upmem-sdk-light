@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <parlay/parallel.h>
 
 #include "pim_interface_header.hpp"
 using namespace std;
