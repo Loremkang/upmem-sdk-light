@@ -35,8 +35,12 @@ int main() {
     uint8_t **dpuBuffer = new uint8_t*[nr_of_dpus];
     for (int i = 0; i < nr_of_dpus; i++) {
         dpuBuffer[i] = new uint8_t[BUFFER_SIZE]; // 4 MB buffer
-        memset(dpuBuffer[i], 0x3f, sizeof(uint8_t) * BUFFER_SIZE);
     }
+    parlay::parallel_for(0, nr_of_dpus, [&](size_t i) {
+        parlay::parallel_for(0, BUFFER_SIZE, [&](size_t j) {
+            dpuBuffer[i][j] = (uint8_t)j ^ 0x3f;
+        });
+    });
 
     // CPU -> PIM.MRAM : Supported by both direct and UPMEM interface.
     pimInterface.SendToPIM(dpuBuffer, DPU_MRAM_HEAP_POINTER_NAME, 0, BUFFER_SIZE, false);
@@ -45,9 +49,9 @@ int main() {
     pimInterface.ReceiveFromPIM(dpuBuffer, DPU_MRAM_HEAP_POINTER_NAME, 0, BUFFER_SIZE, false);
 
     parlay::parallel_for(0, nr_of_dpus, [&](size_t i) {
-        for (int j = 0; j < BUFFER_SIZE; j++) {
-            assert(dpuBuffer[i][j] == 0x3f);
-        }
+        parlay::parallel_for(0, BUFFER_SIZE, [&](size_t j) {
+            assert(dpuBuffer[i][j] == ((uint8_t)j ^ 0x3f));
+        });
     });
 
     // Execute : will call the UPMEM interface.
