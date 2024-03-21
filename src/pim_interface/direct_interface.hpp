@@ -5,12 +5,12 @@
 
 #include <cinttypes>
 #include <iostream>
-
-#include "pim_interface.hpp"
-#include "parlay/parallel.h"
-#include "parlay/internal/sequence_ops.h"
+#include <cassert>
+#include <cstdio>
+#include <string>
 
 extern "C" {
+#include <dpu.h>
 #include <dpu_internals.h>
 #include <dpu_management.h>
 #include <dpu_program.h>
@@ -47,9 +47,33 @@ typedef struct _hw_dpu_rank_allocation_parameters_t {
 } *hw_dpu_rank_allocation_parameters_t;
 }
 
-class DirectPIMInterface : public PIMInterface {
-   protected:
+const uint32_t MAX_NR_RANKS = 40;
+const uint32_t DPU_PER_RANK = 64;
+const uint64_t MRAM_SIZE = (64 << 20);
+
+class DirectPIMInterface {
+   public:
+    DirectPIMInterface(uint32_t nr_of_ranks, std::string binary) {
+        dpu_set_t dpu_set;
+        DPU_ASSERT(
+            dpu_alloc_ranks(nr_of_ranks, "nrThreadsPerRank=1", &dpu_set));
+        DPU_ASSERT(dpu_load(dpu_set, binary.c_str(), NULL));
+        load_from_dpu_set(dpu_set);
+        if (nr_of_ranks != DPU_ALLOCATE_ALL) {
+            assert(this->nr_of_ranks == nr_of_ranks);
+        }
+    }
+
+    DirectPIMInterface(dpu_set_t dpu_set) { load_from_dpu_set(dpu_set); }
+
     void load_from_dpu_set(dpu_set_t dpu_set) {
+        this->dpu_set = dpu_set;
+        DPU_ASSERT(dpu_get_nr_dpus(dpu_set, &this->nr_of_dpus));
+        DPU_ASSERT(dpu_get_nr_ranks(dpu_set, &this->nr_of_ranks));
+        std::printf("Allocated %d DPU(s)\n", this->nr_of_dpus);
+        std::printf("Allocated %d Ranks(s)\n", this->nr_of_ranks);
+        assert(this->nr_of_dpus <= nr_of_ranks * DPU_PER_RANK);
+
         ranks = new dpu_rank_t *[nr_of_ranks];
         params = new hw_dpu_rank_allocation_parameters_t[nr_of_ranks];
         base_addrs = new uint8_t *[nr_of_ranks];
@@ -74,6 +98,13 @@ class DirectPIMInterface : public PIMInterface {
                 program = this_program;
             }
             assert(program == nullptr || program == this_program);
+        }
+    }
+
+    ~DirectPIMInterface() {
+        if (nr_of_ranks > 0) {
+            DPU_ASSERT(dpu_free(dpu_set));
+            nr_of_ranks = nr_of_dpus = 0;
         }
     }
 
@@ -235,8 +266,7 @@ class DirectPIMInterface : public PIMInterface {
                     cache_line[j] =
                         *(((uint64_t *)buffers[j * 8 + dpu_id]) + i);
                 }
-                byte_interleave_avx512(cache_line,
-                                       (uint64_t *)(ptr_dest + offset), true);
+                byte_interleave_avx2(cache_line, (uint64_t *)(ptr_dest + offset));
 
                 offset += 0x40;
                 for (int j = 0; j < 8; j++) {
@@ -246,8 +276,7 @@ class DirectPIMInterface : public PIMInterface {
                     cache_line[j] =
                         *(((uint64_t *)buffers[j * 8 + dpu_id + 4]) + i);
                 }
-                byte_interleave_avx512(cache_line,
-                                       (uint64_t *)(ptr_dest + offset), true);
+                byte_interleave_avx2(cache_line, (uint64_t *)(ptr_dest + offset));
             }
         }
 
@@ -276,107 +305,12 @@ class DirectPIMInterface : public PIMInterface {
         return symbol.address;
     }
 
-    void ReceiveFromRankWRAM(uint8_t **buffers, uint32_t wram_word_offset,
-                             uint32_t nb_of_words, dpu_rank_t *rank) {
-        // LOG_RANK(DEBUG, rank, "%p, %u, %u", transfer_matrix,
-        // wram_word_offset, nb_of_words);
-        if (nb_of_words == 0) {
-            return;
-        }
-
-        auto verify = [](uint32_t wram_word_offset, uint32_t nb_of_words,
-                         dpu_rank_t *rank) {
-            // verify_wram_access(wram_word_offset, nb_of_words, rank);
-            if (wram_word_offset + nb_of_words >
-                rank->description->hw.memories.wram_size) {
-                return DPU_ERR_INVALID_WRAM_ACCESS;
-            }
-            return DPU_OK;
-        };
-
-        if (!(verify(wram_word_offset, nb_of_words, rank) == DPU_OK)) {
-            printf("ERROR: invalid wram access ((%d >= %d) || (%d > %d))",
-                   wram_word_offset, (rank)->description->hw.memories.wram_size,
-                   (wram_word_offset) + (nb_of_words),
-                   (rank)->description->hw.memories.wram_size);
-            fflush(stdout);
-            assert(false);
-        }
-
-        uint8_t nr_cis =
-            rank->description->hw.topology.nr_of_control_interfaces;
-        uint8_t nr_dpus_per_ci =
-            rank->description->hw.topology.nr_of_dpus_per_control_interface;
-        dpu_error_t status;
-
-        dpuword_t *wram_array[DPU_MAX_NR_CIS] = {0};
-        dpu_member_id_t each_dpu;
-
-        for (each_dpu = 0; each_dpu < nr_dpus_per_ci; ++each_dpu) {
-            dpu_slice_id_t each_ci;
-            uint8_t mask = 0;
-
-            for (each_ci = 0; each_ci < nr_cis; ++each_ci) {
-                dpuword_t *dst = (dpuword_t *)buffers[get_transfer_matrix_index(
-                    rank, each_dpu, each_ci)];  // reversed here
-
-                if (dst != NULL) {
-                    wram_array[each_ci] = dst;
-                    mask |= CI_MASK_ONE(each_ci);
-                }
-            }
-
-            if (mask != 0) {
-                FF((dpu_error_t)ufi_select_dpu(rank, &mask, each_dpu));
-                FF((dpu_error_t)ufi_wram_read(rank, mask, wram_array,
-                                              wram_word_offset, nb_of_words));
-            }
-        }
-        return;
-    end:
-        std::cout << "ReceiveFromRankWRAM ERROR" << std::endl;
-        exit(0);
-    }
-
    public:
-    DirectPIMInterface(dpu_set_t dpu_set) : PIMInterface(dpu_set) {
-        load_from_dpu_set(this->dpu_set);
-    }
-
-    DirectPIMInterface(uint32_t nr_of_ranks, std::string binary)
-        : PIMInterface(nr_of_ranks, binary) {
-        load_from_dpu_set(this->dpu_set);
-    }
-
     // not modifying Launch currently because the default "error handling" seems
     // to be useful.
     void Launch(bool async) {
         auto async_parameter = async ? DPU_ASYNCHRONOUS : DPU_SYNCHRONOUS;
         DPU_ASSERT(dpu_launch(dpu_set, async_parameter));
-    }
-
-    void ReceiveFromWRAM(uint8_t **buffers, uint32_t symbol_base_offset,
-                         uint32_t symbol_offset, uint32_t length,
-                         bool async_transfer) {
-        assert(DirectAvailable(async_transfer));
-        symbol_offset += symbol_base_offset;
-        // printf("Heap Pointer Offset: %lx\n",
-        // GetSymbolOffset(DPU_MRAM_HEAP_POINTER_NAME)); printf("Symbol Offset:
-        // %lx\n", symbol_offset);
-        uint32_t wram_word_offset = symbol_offset >> 2;
-        uint32_t nb_of_words = length >> 2;
-
-        // for (size_t i = 0; i < nr_of_ranks; i++) {
-        //     ReceiveFromRankWRAM(&buffers[i * MAX_NR_DPUS_PER_RANK],
-        //                         wram_word_offset, nb_of_words, ranks[i]);
-        // }
-        parlay::parallel_for(
-            0, nr_of_ranks,
-            [&](size_t i) {
-                ReceiveFromRankWRAM(&buffers[i * MAX_NR_DPUS_PER_RANK],
-                                    wram_word_offset, nb_of_words, ranks[i]);
-            },
-            1, false);
     }
 
     void ReceiveFromMRAM(uint8_t **buffers, uint32_t symbol_base_offset,
@@ -391,15 +325,9 @@ class DirectPIMInterface : public PIMInterface {
                                 symbol_offset, base_addrs[i], length);
         };
 
-        parlay::parallel_for(
-            0, nr_of_ranks,
-            [&](size_t i) {
-                ReceiveFromIthRank(i);
-            },
-            1, false);
-        // for (size_t i = 0; i < nr_of_ranks; i++) {
-        //     ReceiveFromIthRank(i);
-        // }
+        for (size_t i = 0; i < nr_of_ranks; i++) {
+            ReceiveFromIthRank(i);
+        }
     }
 
     void ReceiveFromPIM(uint8_t **buffers, std::string symbol_name,
@@ -428,15 +356,11 @@ class DirectPIMInterface : public PIMInterface {
             assert(offset == nr_of_dpus);
         }
 
-        if (symbol_base_offset & MRAM_ADDRESS_SPACE) {  // receive from mram
-            // Only support heap pointer at present
-            assert(symbol_name == DPU_MRAM_HEAP_POINTER_NAME);
-            ReceiveFromMRAM(buffers_alligned, symbol_base_offset, symbol_offset,
-                            length, async_transfer);
-        } else {  // receive from wram
-            ReceiveFromWRAM(buffers_alligned, symbol_base_offset, symbol_offset,
-                            length, async_transfer);
-        }
+        assert(symbol_base_offset & MRAM_ADDRESS_SPACE);
+        // Only support heap pointer at present
+        //assert(symbol_name == DPU_MRAM_HEAP_POINTER_NAME);
+        ReceiveFromMRAM(buffers_alligned, symbol_base_offset, symbol_offset,
+                        length, async_transfer);
     }
 
     void SendToPIM(uint8_t **buffers, std::string symbol_name,
@@ -472,25 +396,8 @@ class DirectPIMInterface : public PIMInterface {
                            symbol_offset, base_addrs[i], length);
         };
 
-        parlay::parallel_for(
-            0, nr_of_ranks,
-            [&](size_t i) {
-                SendToIthRank(i);
-            },
-            1, false);
-
-        // Find physical address for each rank
-        // for (uint32_t i = 0; i < nr_of_ranks; i++) {
-        //     SendToIthRank(i);
-        // }
-    }
-
-    ~DirectPIMInterface() {
-        if (ranks != nullptr) {
-            delete[] ranks;
-        }
-        if (base_addrs != nullptr) {
-            delete[] base_addrs;
+        for (uint32_t i = 0; i < nr_of_ranks; i++) {
+            SendToIthRank(i);
         }
     }
 
@@ -518,36 +425,15 @@ class DirectPIMInterface : public PIMInterface {
         _mm256_storeu_si256((__m256i *)&dst1[32], final1);
     }
 
-    void byte_interleave_avx512(uint64_t *input, uint64_t *output,
-                                bool use_stream) {
-        __m512i mask;
-
-        mask = _mm512_set_epi64(0x0f0b07030e0a0602ULL, 0x0d0905010c080400ULL,
-
-                                0x0f0b07030e0a0602ULL, 0x0d0905010c080400ULL,
-
-                                0x0f0b07030e0a0602ULL, 0x0d0905010c080400ULL,
-
-                                0x0f0b07030e0a0602ULL, 0x0d0905010c080400ULL);
-
-        __m512i vindex = _mm512_setr_epi32(0, 8, 16, 24, 32, 40, 48, 56, 4, 12,
-                                           20, 28, 36, 44, 52, 60);
-        __m512i perm = _mm512_setr_epi32(0, 4, 1, 5, 2, 6, 3, 7, 8, 12, 9, 13,
-                                         10, 14, 11, 15);
-
-        __m512i load = _mm512_i32gather_epi32(vindex, input, 1);
-        __m512i transpose = _mm512_shuffle_epi8(load, mask);
-        __m512i final = _mm512_permutexvar_epi32(perm, transpose);
-
-        if (use_stream) {
-            _mm512_stream_si512((__m512i *)output, final);
-            return;
-        }
-
-        _mm512_storeu_si512((__m512i *)output, final);
-    }
+   public:
+    uint32_t GetNrOfRanks() const { return nr_of_ranks; }
+    uint32_t GetNrOfDPUs() const { return nr_of_dpus; }
 
    protected:
+    dpu_set_t dpu_set, dpu;
+    uint32_t each_dpu;
+    uint32_t nr_of_ranks, nr_of_dpus;
+
     const int MRAM_ADDRESS_SPACE = 0x8000000;
     dpu_rank_t **ranks;
     hw_dpu_rank_allocation_parameters_t *params;

@@ -4,28 +4,21 @@
 #include <perfcounter.h>
 #include <assert.h>
 
-__host int64_t DPU_ID;
-
-void StandardOutput() {
-    printf("HEAP POINTER ADDR: %p\n", DPU_MRAM_HEAP_POINTER);
-    printf("DPU ID is %lld!\n", DPU_ID);
-    printf("DPU ID is at %p!\n", &DPU_ID);
-}
-
-#define BUFFER_SIZE (32)
-void PrintMRAMHeap(int size) {
-    assert(size <= BUFFER_SIZE);
-    uint64_t buffer[BUFFER_SIZE];
-    mram_read(DPU_MRAM_HEAP_POINTER, buffer, sizeof(uint64_t) * BUFFER_SIZE);
-    for (int i = 0; i < size; i ++) {
-        printf("%d %lx\n", i, buffer[i]);
-    }
-}
+#define BUFFER_SIZE (1024 / sizeof(uint64_t))
+__mram_noinit uint64_t input_buf[BUFFER_SIZE];
+__mram_noinit uint64_t output_buf;
 
 int main() {
     if (me() == 0) {
-        StandardOutput();
-        PrintMRAMHeap(4);
+        uint64_t checksum = 0;
+        __dma_aligned uint64_t wram_buf;
+        for (int i = 0; i < BUFFER_SIZE; i++) {
+            mram_read(&input_buf[i], &wram_buf, 8);
+            checksum += wram_buf;
+        }
+
+        wram_buf = checksum;
+        mram_write(&wram_buf, &output_buf, 8);
     }
     return 0;
 }
