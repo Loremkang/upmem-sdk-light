@@ -17,6 +17,11 @@ class UPMEMInterface : public PIMInterface {
         DPU_ASSERT(dpu_launch(dpu_set, async_parameter));
     }
 
-    UPMEMInterface(int nr_ranks, std::string dpu_program) : PIMInterface(nr_ranks, dpu_program);
-    UPMEMInterface(dpu_set_t dpu_set) : PIMInterface(dpu_set);
+    UPMEMInterface(int nr_ranks, std::string dpu_program) : PIMInterface(nr_ranks, dpu_program) {
+
+    };
+    
+    UPMEMInterface(dpu_set_t dpu_set) : PIMInterface(dpu_set) {
+
+    };
 };

@@ -16,10 +16,10 @@ const int MRAM_BUFFER_SIZE_IN_INT64 = MRAM_BUFFER_SIZE / sizeof(uint64_t);
 __mram uint8_t placeholder[1 << 20];
 // __mram uint64_t buffer[MRAM_BUFFER_SIZE_IN_UINT64];
 
-void standard_output() {
-    printf("HEAP POINTER ADDR: %x\n", DPU_MRAM_HEAP_POINTER);
-    printf("&DPU_ID: %x\n", &DPU_ID);
-    printf("Hello World from %lld!\n", DPU_ID);
+void StandardOutput() {
+    printf("HEAP POINTER ADDR: %p\n", DPU_MRAM_HEAP_POINTER);
+    printf("DPU ID is %lld!\n", DPU_ID);
+    printf("DPU ID is at %p!\n", &DPU_ID);
 }
 
 void wram_test() {
@@ -48,14 +48,16 @@ void mram_test() {
 // __mram uint64_t val[1 << 20];
 
 int main() {
-    standard_output();
-    if (MRAM_TEST) {
-        mram_test();
+    if (me() == 0) {
+        StandardOutput();
     }
-    if (WRAM_TEST) {
-        wram_test();
-    }
-    // for (int i = 0; i < 1e5; i ++) { // about 100ms
+    
+    // if (MRAM_TEST) {
+    //     mram_test();
     // }
+    // if (WRAM_TEST) {
+    //     wram_test();
+    // }
+
     return 0;
 }
