@@ -19,7 +19,6 @@ extern "C" {
 #include <dpu_region_address_translation.h>
 #include <dpu_target_macros.h>
 #include <dpu_types.h>
-#include <dpu_properties_loader.h>
 #include <ufi_config.h>
 #include <ufi_runner.h>
 
@@ -48,6 +47,17 @@ typedef struct _hw_dpu_rank_allocation_parameters_t {
     /* Backends specific */
     fpga_allocation_parameters_t fpga;
 } *hw_dpu_rank_allocation_parameters_t;
+
+typedef struct _dpu_properties_property {
+    const char *name;
+    const char *value;
+    bool used;
+} * _dpu_properties_property_t;
+
+typedef struct _dpu_props {
+    unsigned int nr_properties;
+    _dpu_properties_property_t properties;
+} * _dpu_props_t;
 }
 
 const uint32_t MAX_NR_RANKS = 40;
@@ -291,16 +301,42 @@ class DirectPIMInterface {
             return;
         }
 
-        dpu_rank_t **new_ranks;
-        new_ranks = (dpu_rank_t**)calloc(nr_ranks, sizeof(*ranks));
+        dpu_rank_t **dpu_ranks;
+        dpu_ranks = (dpu_rank_t**)calloc(nr_ranks, sizeof(dpu_rank_t*));
         for (uint32_t each_rank = 0; each_rank < nr_ranks; each_rank++) {
-            DPU_ASSERT(dpu_get_rank_of_type("nrThreadsPerRank=0", &new_ranks[each_rank]));
-            DPU_ASSERT(dpu_reset_rank(new_ranks[each_rank]));
+            // dpu_get_rank_of_type
+            struct _dpu_props properties;
+            properties.nr_properties = 0;
+            properties.properties = NULL;
+            dpu_rank_t *dpu_rank = (dpu_rank_t*)calloc(1, sizeof(dpu_rank_t));
+            dpu_rank->type = HW;
+            assert(dpu_rank_handler_instantiate(dpu_rank->type, &dpu_rank->handler_context, true));            
+            assert(dpu_rank_handler_get_rank(dpu_rank, dpu_rank->handler_context, &properties));
+            dpu_rank->profiling_context.dpu = DPU_GET_UNSAFE(dpu_rank, 0, 0);
+            dpu_rank->profiling_context.enable_profiling = DPU_PROFILING_NOP;
+            dpu_rank->description->configuration.disable_reset_on_alloc = false;
+            dpu_rank->debug.cmds_buffer.size = 1000;
+            dpu_rank->debug.cmds_buffer.cmds = NULL;
+
+            // dpu_reset_rank
+            dpu_rank->handler_context->handler->custom_operation(
+                dpu_rank, (dpu_slice_id_t)-1, (dpu_member_id_t)-1,
+                DPU_COMMAND_EVENT_START, (dpu_custom_command_args_t)DPU_EVENT_RESET);
+            dpu_rank->handler_context->handler->custom_operation(
+                dpu_rank, (dpu_slice_id_t)-1, (dpu_member_id_t)-1,
+                DPU_COMMAND_ALL_SOFT_RESET, NULL);
+            ci_reset_rank(dpu_rank);
+            dpu_rank->handler_context->handler->custom_operation(
+                dpu_rank, (dpu_slice_id_t)-1, (dpu_member_id_t)-1,
+                DPU_COMMAND_EVENT_END, (dpu_custom_command_args_t)DPU_EVENT_RESET);
+            dpu_ranks[each_rank] = dpu_rank;
         }
+
+        // init_dpu_set
         memset(&dpu_set, 0, sizeof(dpu_set_t));
         dpu_set.kind = DPU_SET_RANKS;
         dpu_set.list.nr_ranks = nr_ranks;
-        dpu_set.list.ranks = new_ranks;
+        dpu_set.list.ranks = dpu_ranks;
     }
 
     void Load(const char *dpu_binary) {
