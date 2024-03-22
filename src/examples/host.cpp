@@ -6,9 +6,7 @@ using namespace std;
 
 int main() {
 
-    const int NR_RANKS = 1;
-
-    DirectPIMInterface pimInterface(NR_RANKS, false);
+    DirectPIMInterface pimInterface(1, false);
     pimInterface.Load("dpu");
 
     int nr_of_dpus = pimInterface.GetNrOfDPUs();
@@ -34,14 +32,18 @@ int main() {
         output_buf[i] = new uint8_t[OUT_BUFFER_SIZE];
     }
 
-    // CPU -> PIM.MRAM : Supported by both direct and UPMEM interface.
-    pimInterface.SendToPIM(input_buf, "input_buf", 0, BUFFER_SIZE);
+    pimInterface.RegisterBufferForSendToPIM(input_buf, "input_buf", 0);
+    pimInterface.RegisterBufferForReceiveFromPIM(output_buf, "output_buf", 0);
 
-    // Execute : will call the UPMEM interface.
-    pimInterface.Launch();
+    // CPU -> PIM.MRAM : Supported by both direct and UPMEM interface.
+    pimInterface.SendToPIMRank(0, BUFFER_SIZE);
+
+    // Execute
+    pimInterface.Launch(0);
 
     // PIM.MRAM -> CPU : Supported by both direct and UPMEM interface.
-    pimInterface.ReceiveFromPIM(output_buf, "output_buf", 0, 8);
+    //pimInterface.ReceiveFromPIM(output_buf, "output_buf", 0, 8);
+    pimInterface.ReceiveFromPIMRank(0, 8);
 
     // Check
     for (int i = 0; i < nr_of_dpus; i++) {

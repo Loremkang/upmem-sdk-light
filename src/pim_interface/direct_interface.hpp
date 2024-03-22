@@ -373,38 +373,36 @@ class DirectPIMInterface {
         }
     }
     
-    void Launch() {
+    void Launch(uint32_t rank_id) {
         // use default launch if you need the default "error handling"
         if (debuggable) {
-            DPU_ASSERT(dpu_launch(dpu_set, DPU_SYNCHRONOUS));
+            if (rank_id == 0) {
+                DPU_ASSERT(dpu_launch(dpu_set, DPU_SYNCHRONOUS));
+            }
             return;
         }
 
-        for (uint32_t i = 0; i < nr_of_ranks; i++) {
-            DPU_ASSERT(ci_start_thread_rank(ranks[i], DPU_BOOT_THREAD, false, NULL));
-        }
-        for (uint32_t i = 0; i < nr_of_ranks; i++) {
-            dpu_rank_t *rank = ranks[i];
-            dpu_slice_id_t ci_cnt = rank->description->hw.topology.nr_of_control_interfaces;
-            dpu_bitfield_t dpu_poll_running[DPU_MAX_NR_CIS];
-            dpu_bitfield_t dpu_poll_in_fault[DPU_MAX_NR_CIS];
-            while (true) {
-                DPU_ASSERT(ci_poll_rank(rank, dpu_poll_running, dpu_poll_in_fault));
-                dpu_slice_id_t done_cnt = 0;
-                for (dpu_slice_id_t each_slice = 0; each_slice < ci_cnt; ++each_slice) {
-                    dpu_selected_mask_t mask_all = rank->runtime.control_interface.slice_info[each_slice].enabled_dpus;
-                    if (((dpu_poll_running[each_slice] & ~dpu_poll_in_fault[each_slice]) & mask_all) == 0) {
-                        done_cnt++;
-                    }
+        dpu_rank_t *rank = ranks[rank_id];
+        DPU_ASSERT(ci_start_thread_rank(rank, DPU_BOOT_THREAD, false, NULL));
+        dpu_slice_id_t ci_cnt = rank->description->hw.topology.nr_of_control_interfaces;
+        dpu_bitfield_t dpu_poll_running[DPU_MAX_NR_CIS];
+        dpu_bitfield_t dpu_poll_in_fault[DPU_MAX_NR_CIS];
+        while (true) {
+            DPU_ASSERT(ci_poll_rank(rank, dpu_poll_running, dpu_poll_in_fault));
+            dpu_slice_id_t done_cnt = 0;
+            for (dpu_slice_id_t each_slice = 0; each_slice < ci_cnt; ++each_slice) {
+                dpu_selected_mask_t mask_all = rank->runtime.control_interface.slice_info[each_slice].enabled_dpus;
+                if (((dpu_poll_running[each_slice] & ~dpu_poll_in_fault[each_slice]) & mask_all) == 0) {
+                    done_cnt++;
                 }
-                if (done_cnt == ci_cnt) {
-                    break;
-                }
+            }
+            if (done_cnt == ci_cnt) {
+                break;
             }
         }
     }
 
-    void ReceiveFromMRAM(uint8_t **buffers, uint32_t symbol_base_offset,
+    /*void ReceiveFromMRAM(uint8_t **buffers, uint32_t symbol_base_offset,
                          uint32_t symbol_offset, uint32_t length) {
         assert(DirectAvailable());
         assert(symbol_base_offset & MRAM_ADDRESS_SPACE);
@@ -450,9 +448,40 @@ class DirectPIMInterface {
         //assert(symbol_name == DPU_MRAM_HEAP_POINTER_NAME);
         ReceiveFromMRAM(buffers_alligned, symbol_base_offset, symbol_offset,
                         length);
+    }*/
+
+    void RegisterBufferForReceiveFromPIM(uint8_t **buffers, std::string symbol_name,
+                                         uint32_t symbol_offset) {
+        // Please make sure buffers don't overflow
+        assert(DirectAvailable());
+        uint32_t symbol_base_offset = GetSymbolOffset(symbol_name);
+        assert(symbol_base_offset & MRAM_ADDRESS_SPACE);
+        recv_buffers_symbol_offset = symbol_offset + (symbol_base_offset ^ MRAM_ADDRESS_SPACE);
+        // Skip disabled PIM modules
+        {
+            uint32_t offset = 0;
+            for (uint32_t i = 0; i < nr_of_ranks; i++) {
+                for (int j = 0; j < MAX_NR_DPUS_PER_RANK; j++) {
+                    if (ranks[i]->dpus[j].enabled) {
+                        recv_buffers_aligned[i * MAX_NR_DPUS_PER_RANK + j] =
+                            buffers[offset++];
+                    } else {
+                        recv_buffers_aligned[i * MAX_NR_DPUS_PER_RANK + j] =
+                            nullptr;
+                    }
+                }
+            }
+            assert(offset == nr_of_dpus);
+        }
     }
 
-    void SendToPIM(uint8_t **buffers, std::string symbol_name,
+    void ReceiveFromPIMRank(uint32_t rank_id, uint32_t length) {
+        DPU_ASSERT(dpu_switch_mux_for_rank(ranks[rank_id], true));
+        ReceiveFromRankMRAM(&recv_buffers_aligned[rank_id * MAX_NR_DPUS_PER_RANK],
+                            recv_buffers_symbol_offset, base_addrs[rank_id], length);
+    }
+
+    /*void SendToPIM(uint8_t **buffers, std::string symbol_name,
                    uint32_t symbol_offset, uint32_t length) {
         // Please make sure buffers don't overflow
         assert(DirectAvailable());
@@ -487,6 +516,37 @@ class DirectPIMInterface {
         for (uint32_t i = 0; i < nr_of_ranks; i++) {
             SendToIthRank(i);
         }
+    }*/
+
+    void RegisterBufferForSendToPIM(uint8_t **buffers, std::string symbol_name,
+                                    uint32_t symbol_offset) {
+        // Please make sure buffers don't overflow
+        assert(DirectAvailable());
+        uint32_t symbol_base_offset = GetSymbolOffset(symbol_name);
+        assert(symbol_base_offset & MRAM_ADDRESS_SPACE);
+        send_buffers_symbol_offset = symbol_offset + (symbol_base_offset ^ MRAM_ADDRESS_SPACE);
+        // Skip disabled PIM modules
+        {
+            uint32_t offset = 0;
+            for (uint32_t i = 0; i < nr_of_ranks; i++) {
+                for (int j = 0; j < MAX_NR_DPUS_PER_RANK; j++) {
+                    if (ranks[i]->dpus[j].enabled) {
+                        send_buffers_aligned[i * MAX_NR_DPUS_PER_RANK + j] =
+                            buffers[offset++];
+                    } else {
+                        send_buffers_aligned[i * MAX_NR_DPUS_PER_RANK + j] =
+                            nullptr;
+                    }
+                }
+            }
+            assert(offset == nr_of_dpus);
+        }
+    }
+
+    void SendToPIMRank(uint32_t rank_id, uint32_t length) {
+        DPU_ASSERT(dpu_switch_mux_for_rank(ranks[rank_id], true));
+        SendToRankMRAM(&send_buffers_aligned[rank_id * MAX_NR_DPUS_PER_RANK],
+                            send_buffers_symbol_offset, base_addrs[rank_id], length);
     }
 
    private:
@@ -529,4 +589,9 @@ class DirectPIMInterface {
     uint8_t **base_addrs;
     dpu_program_t program;
     // map<std::string, uint32_t> offset_list;
+
+    uint8_t *send_buffers_aligned[MAX_NR_RANKS * MAX_NR_DPUS_PER_RANK];
+    uint32_t send_buffers_symbol_offset;
+    uint8_t *recv_buffers_aligned[MAX_NR_RANKS * MAX_NR_DPUS_PER_RANK];
+    uint32_t recv_buffers_symbol_offset;
 };
