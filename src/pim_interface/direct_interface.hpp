@@ -14,11 +14,14 @@ extern "C" {
 #include <dpu_internals.h>
 #include <dpu_management.h>
 #include <dpu_program.h>
+#include <dpu_loader.h>
 #include <dpu_rank.h>
 #include <dpu_region_address_translation.h>
 #include <dpu_target_macros.h>
 #include <dpu_types.h>
+#include <dpu_properties_loader.h>
 #include <ufi_config.h>
+#include <ufi_runner.h>
 
 #include "backends/hw/src/commons/dpu_region_constants.h"
 #include "backends/hw/src/rank/hw_dpu_sysfs.h"
@@ -53,21 +56,16 @@ const uint64_t MRAM_SIZE = (64 << 20);
 
 class DirectPIMInterface {
    public:
-    DirectPIMInterface(uint32_t nr_of_ranks, std::string binary) {
-        dpu_set_t dpu_set;
-        DPU_ASSERT(
-            dpu_alloc_ranks(nr_of_ranks, "nrThreadsPerRank=1", &dpu_set));
-        DPU_ASSERT(dpu_load(dpu_set, binary.c_str(), NULL));
-        load_from_dpu_set(dpu_set);
+    DirectPIMInterface(uint32_t nr_of_ranks, bool debuggable = true) {
+        this->debuggable = debuggable;
+        AllocRanks(nr_of_ranks);
+        load_from_dpu_set();
         if (nr_of_ranks != DPU_ALLOCATE_ALL) {
             assert(this->nr_of_ranks == nr_of_ranks);
         }
     }
 
-    DirectPIMInterface(dpu_set_t dpu_set) { load_from_dpu_set(dpu_set); }
-
-    void load_from_dpu_set(dpu_set_t dpu_set) {
-        this->dpu_set = dpu_set;
+    void load_from_dpu_set() {
         DPU_ASSERT(dpu_get_nr_dpus(dpu_set, &this->nr_of_dpus));
         DPU_ASSERT(dpu_get_nr_ranks(dpu_set, &this->nr_of_ranks));
         std::printf("Allocated %d DPU(s)\n", this->nr_of_dpus);
@@ -77,7 +75,6 @@ class DirectPIMInterface {
         ranks = new dpu_rank_t *[nr_of_ranks];
         params = new hw_dpu_rank_allocation_parameters_t[nr_of_ranks];
         base_addrs = new uint8_t *[nr_of_ranks];
-        program = nullptr;
         for (uint32_t i = 0; i < nr_of_ranks; i++) {
             ranks[i] = dpu_set.list.ranks[i];
             params[i] =
@@ -86,26 +83,13 @@ class DirectPIMInterface {
                                                            ->_internals.data));
             base_addrs[i] = params[i]->ptr_region;
         }
-        // find program pointer
-        DPU_FOREACH(dpu_set, dpu, each_dpu) {
-            assert(dpu.kind == DPU_SET_DPU);
-            dpu_t *dpuptr = dpu.dpu;
-            if (!dpu_is_enabled(dpuptr)) {
-                continue;
-            }
-            dpu_program_t *this_program = dpu_get_program(dpuptr);
-            if (program == nullptr) {
-                program = this_program;
-            }
-            assert(program == nullptr || program == this_program);
-        }
     }
 
     ~DirectPIMInterface() {
-        if (nr_of_ranks > 0) {
-            DPU_ASSERT(dpu_free(dpu_set));
-            nr_of_ranks = nr_of_dpus = 0;
-        }
+        //if (nr_of_ranks > 0) {
+        //    DPU_ASSERT(dpu_free(dpu_set));
+        //    nr_of_ranks = nr_of_dpus = 0;
+        //}
     }
 
     inline bool aligned(uint64_t offset, uint64_t factor) {
@@ -283,12 +267,7 @@ class DirectPIMInterface {
         __builtin_ia32_mfence();
     }
 
-    bool DirectAvailable(bool async_transfer) {
-        // Only suport synchronous transfer
-        if (async_transfer) {
-            return false;
-        }
-
+    bool DirectAvailable() {
         for (uint32_t i = 0; i < nr_of_ranks; i++) {
             if (params[i]->mode != DPU_REGION_MODE_PERF) {
                 return false;
@@ -301,22 +280,97 @@ class DirectPIMInterface {
     // Find symbol address offset
     uint32_t GetSymbolOffset(std::string symbol_name) {
         dpu_symbol_t symbol;
-        DPU_ASSERT(dpu_get_symbol(program, symbol_name.c_str(), &symbol));
+        DPU_ASSERT(dpu_get_symbol(&program, symbol_name.c_str(), &symbol));
         return symbol.address;
     }
 
    public:
-    // not modifying Launch currently because the default "error handling" seems
-    // to be useful.
-    void Launch(bool async) {
-        auto async_parameter = async ? DPU_ASYNCHRONOUS : DPU_SYNCHRONOUS;
-        DPU_ASSERT(dpu_launch(dpu_set, async_parameter));
+    void AllocRanks(uint32_t nr_ranks) {
+        if (debuggable) {
+            DPU_ASSERT(dpu_alloc_ranks(nr_ranks, "nrThreadsPerRank=1", &dpu_set));
+            return;
+        }
+
+        dpu_rank_t **new_ranks;
+        new_ranks = (dpu_rank_t**)calloc(nr_ranks, sizeof(*ranks));
+        for (uint32_t each_rank = 0; each_rank < nr_ranks; each_rank++) {
+            DPU_ASSERT(dpu_get_rank_of_type("nrThreadsPerRank=0", &new_ranks[each_rank]));
+            DPU_ASSERT(dpu_reset_rank(new_ranks[each_rank]));
+        }
+        memset(&dpu_set, 0, sizeof(dpu_set_t));
+        dpu_set.kind = DPU_SET_RANKS;
+        dpu_set.list.nr_ranks = nr_ranks;
+        dpu_set.list.ranks = new_ranks;
+    }
+
+    void Load(const char *dpu_binary) {
+        if (debuggable) {
+            DPU_ASSERT(dpu_load(dpu_set, dpu_binary, NULL));
+            // find program pointer
+            DPU_FOREACH(dpu_set, dpu, each_dpu) {
+                assert(dpu.kind == DPU_SET_DPU);
+                dpu_t *dpuptr = dpu.dpu;
+                if (!dpu_is_enabled(dpuptr)) {
+                    continue;
+                }
+                dpu_program_t *this_program = dpu_get_program(dpuptr);
+                memcpy(&program, this_program, sizeof(dpu_program_t));
+                break;
+            }
+            return;
+        }
+
+        dpu_elf_file_t elf_info;
+        dpu_init_program_ref(&program);
+        DPU_ASSERT(dpu_load_elf_program(&elf_info, dpu_binary, &program,
+            ranks[0]->description->hw.memories.mram_size));
+        for (uint32_t i = 0; i < nr_of_ranks; i++) {
+            struct _dpu_loader_context_t loader_context;
+            dpu_loader_fill_rank_context(&loader_context, ranks[i]);
+            DPU_ASSERT(dpu_elf_load(elf_info, &loader_context));
+            for (int j = 0; j < MAX_NR_DPUS_PER_RANK; j++) {
+                if (ranks[i]->dpus[j].enabled) {
+                    dpu_take_program_ref(&program);
+                    dpu_set_program(&ranks[i]->dpus[j], &program);
+                }
+            }
+        }
+    }
+    
+    void Launch() {
+        // use default launch if you need the default "error handling"
+        if (debuggable) {
+            DPU_ASSERT(dpu_launch(dpu_set, DPU_SYNCHRONOUS));
+            return;
+        }
+
+        for (uint32_t i = 0; i < nr_of_ranks; i++) {
+            DPU_ASSERT(ci_start_thread_rank(ranks[i], DPU_BOOT_THREAD, false, NULL));
+        }
+        for (uint32_t i = 0; i < nr_of_ranks; i++) {
+            dpu_rank_t *rank = ranks[i];
+            dpu_slice_id_t ci_cnt = rank->description->hw.topology.nr_of_control_interfaces;
+            dpu_bitfield_t dpu_poll_running[DPU_MAX_NR_CIS];
+            dpu_bitfield_t dpu_poll_in_fault[DPU_MAX_NR_CIS];
+            while (true) {
+                DPU_ASSERT(ci_poll_rank(rank, dpu_poll_running, dpu_poll_in_fault));
+                dpu_slice_id_t done_cnt = 0;
+                for (dpu_slice_id_t each_slice = 0; each_slice < ci_cnt; ++each_slice) {
+                    dpu_selected_mask_t mask_all = rank->runtime.control_interface.slice_info[each_slice].enabled_dpus;
+                    if (((dpu_poll_running[each_slice] & ~dpu_poll_in_fault[each_slice]) & mask_all) == 0) {
+                        done_cnt++;
+                    }
+                }
+                if (done_cnt == ci_cnt) {
+                    break;
+                }
+            }
+        }
     }
 
     void ReceiveFromMRAM(uint8_t **buffers, uint32_t symbol_base_offset,
-                         uint32_t symbol_offset, uint32_t length,
-                         bool async_transfer) {
-        assert(DirectAvailable(async_transfer));
+                         uint32_t symbol_offset, uint32_t length) {
+        assert(DirectAvailable());
         assert(symbol_base_offset & MRAM_ADDRESS_SPACE);
         symbol_offset += symbol_base_offset ^ MRAM_ADDRESS_SPACE;
         auto ReceiveFromIthRank = [&](size_t i) {
@@ -331,10 +385,9 @@ class DirectPIMInterface {
     }
 
     void ReceiveFromPIM(uint8_t **buffers, std::string symbol_name,
-                        uint32_t symbol_offset, uint32_t length,
-                        bool async_transfer) {
+                        uint32_t symbol_offset, uint32_t length) {
         // Please make sure buffers don't overflow
-        assert(DirectAvailable(async_transfer));
+        assert(DirectAvailable());
 
         uint32_t symbol_base_offset = GetSymbolOffset(symbol_name);
 
@@ -360,14 +413,13 @@ class DirectPIMInterface {
         // Only support heap pointer at present
         //assert(symbol_name == DPU_MRAM_HEAP_POINTER_NAME);
         ReceiveFromMRAM(buffers_alligned, symbol_base_offset, symbol_offset,
-                        length, async_transfer);
+                        length);
     }
 
     void SendToPIM(uint8_t **buffers, std::string symbol_name,
-                   uint32_t symbol_offset, uint32_t length,
-                   bool async_transfer) {
+                   uint32_t symbol_offset, uint32_t length) {
         // Please make sure buffers don't overflow
-        assert(DirectAvailable(async_transfer));
+        assert(DirectAvailable());
 
         assert(GetSymbolOffset(symbol_name) & MRAM_ADDRESS_SPACE);
         symbol_offset += GetSymbolOffset(symbol_name) ^ MRAM_ADDRESS_SPACE;
@@ -433,11 +485,12 @@ class DirectPIMInterface {
     dpu_set_t dpu_set, dpu;
     uint32_t each_dpu;
     uint32_t nr_of_ranks, nr_of_dpus;
+    bool debuggable;
 
     const int MRAM_ADDRESS_SPACE = 0x8000000;
     dpu_rank_t **ranks;
     hw_dpu_rank_allocation_parameters_t *params;
     uint8_t **base_addrs;
-    dpu_program_t *program;
+    dpu_program_t program;
     // map<std::string, uint32_t> offset_list;
 };

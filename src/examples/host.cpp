@@ -8,9 +8,8 @@ int main() {
 
     const int NR_RANKS = 1;
 
-    // To Allocate: identify the number of RANKS you want, or use DPU_ALLOCATE_ALL to allocate all possible.
-    DirectPIMInterface pimInterface(NR_RANKS, "dpu");
-    // DirectPIMInterface pimInterface(DPU_ALLOCATE_ALL, "dpu");
+    DirectPIMInterface pimInterface(NR_RANKS, false);
+    pimInterface.Load("dpu");
 
     int nr_of_dpus = pimInterface.GetNrOfDPUs();
     const int BUFFER_SIZE = 1024;
@@ -36,17 +35,21 @@ int main() {
     }
 
     // CPU -> PIM.MRAM : Supported by both direct and UPMEM interface.
-    pimInterface.SendToPIM(input_buf, "input_buf", 0, BUFFER_SIZE, false);
+    pimInterface.SendToPIM(input_buf, "input_buf", 0, BUFFER_SIZE);
 
     // Execute : will call the UPMEM interface.
-    pimInterface.Launch(false);
+    pimInterface.Launch();
 
     // PIM.MRAM -> CPU : Supported by both direct and UPMEM interface.
-    pimInterface.ReceiveFromPIM(output_buf, "output_buf", 0, 8, false);
+    pimInterface.ReceiveFromPIM(output_buf, "output_buf", 0, 8);
 
     // Check
     for (int i = 0; i < nr_of_dpus; i++) {
-        assert(checksum[i] == *(uint64_t*)output_buf[i]);
+        uint64_t output_checksum = *(uint64_t*)output_buf[i];
+        assert(checksum[i] == output_checksum);
+        if (i % 10 == 0) {
+            printf("DPU[%d] passed: %lu == %lu\n", i, checksum[i], output_checksum);
+        }
     }
 
     for (int i = 0; i < nr_of_dpus; i++) {
