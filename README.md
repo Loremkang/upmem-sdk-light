@@ -4,6 +4,15 @@ This repo is a light version of upmem sdk providing limited functionality with h
 # Prerequisite:
 1. Have UPMEM SDK installed first.
 
+# To Compile:
+
+```
+mkdir build
+cd build
+cmake ..
+make
+```
+
 # To Run:
 
 ```
@@ -11,7 +20,7 @@ mkdir build
 cd build
 cmake ..
 make
-./upmem_sdk_light
+./example
 ```
 
 # Notice:
