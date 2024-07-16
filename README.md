@@ -16,11 +16,11 @@ make
 # To Run:
 
 ```
-mkdir build
-cd build
-cmake ..
-make
 ./example
+```
+
+```
+./benchmark <Number of Ranks> <Interface Type (direct/UPMEM)> <Host2PIM/PIM2Host>
 ```
 
 # Notice:
