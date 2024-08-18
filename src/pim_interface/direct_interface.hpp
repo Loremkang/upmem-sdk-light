@@ -61,6 +61,21 @@ class DirectPIMInterface : public PIMInterface {
                                                            ->description
                                                            ->_internals.data));
             base_addrs[i] = params[i]->ptr_region;
+            printf("Rank %d is on channel %d on numa node %d\n", (int)i, (int)params[i]->channel_id, ranks[i]->numa_node);
+        }
+        // find rank ID for each DPU
+        {
+            rankIDOfDPU = new size_t[nr_of_dpus];
+            size_t dpu_id = 0;
+            for (size_t i = 0; i < nr_of_ranks; i ++) {
+                for (size_t j = 0; j < MAX_NR_DPUS_PER_RANK; j ++) {
+                    if (ranks[i]->dpus[j].enabled) {
+                        rankIDOfDPU[dpu_id] = i;
+                        dpu_id ++;
+                    }
+                }
+            }
+            assert((dpu_id == nr_of_dpus) && "DPU ID mismatch");
         }
         // find program pointer
         DPU_FOREACH(dpu_set, dpu, each_dpu) {
@@ -484,12 +499,28 @@ class DirectPIMInterface : public PIMInterface {
         // }
     }
 
+    size_t GetNUMAIDOfDPU(size_t dpu_id) {
+        assert(dpu_id < nr_of_dpus && ranks != nullptr);
+        return ranks[rankIDOfDPU[dpu_id]]->numa_node;
+    }
+
+    size_t GetRankIDOfDPU(size_t dpu_id) {
+        assert(dpu_id < nr_of_dpus && rankIDOfDPU != nullptr);
+        return rankIDOfDPU[dpu_id];
+    }
+
     ~DirectPIMInterface() {
         if (ranks != nullptr) {
             delete[] ranks;
         }
         if (base_addrs != nullptr) {
             delete[] base_addrs;
+        }
+        if (params != nullptr) {
+            delete[] params;
+        }
+        if (rankIDOfDPU != nullptr) {
+            delete[] rankIDOfDPU;
         }
     }
 
@@ -535,5 +566,6 @@ class DirectPIMInterface : public PIMInterface {
     hw_dpu_rank_allocation_parameters_t *params;
     uint8_t **base_addrs;
     dpu_program_t *program;
+    size_t* rankIDOfDPU;
     // map<std::string, uint32_t> offset_list;
 };

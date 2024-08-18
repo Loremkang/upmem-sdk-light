@@ -5,6 +5,7 @@
 #include <iomanip>  // Add this line at the top of your file if it's not already there
 #include <iostream>
 #include <string>
+#include <numa.h>
 
 #include "pim_interface_header.hpp"
 #include "timer.hpp"
@@ -55,8 +56,20 @@ void TestMRAMThroughput(PIMInterface *interface,
     int nrOfDPUs = interface->GetNrOfDPUs();
 
     uint8_t **dpuBuffer = new uint8_t *[nrOfDPUs];
-    for (int i = 0; i < nrOfDPUs; i++) {
-        dpuBuffer[i] = new uint8_t[MaxBufferSizePerDPU];
+    
+
+    if (dynamic_cast<DirectPIMInterface *>(interface) != nullptr) {
+        auto interface_ptr = dynamic_cast<DirectPIMInterface *>(interface);
+        for (int i = 0; i < nrOfDPUs; i ++) {
+            // dpuBuffer[i] = (uint8_t*)numa_alloc_onnode(MaxBufferSizePerDPU, interface_ptr->GetNUMAIDOfDPU(i));
+            // printf("Allocate Buffer %d on NUMA %d\n", i, interface_ptr->GetNUMAIDOfDPU(i));
+            dpuBuffer[i] = new uint8_t[MaxBufferSizePerDPU];
+        }
+    } else {
+        assert(dynamic_cast<UPMEMInterface *>(interface) != nullptr);
+        for (int i = 0; i < nrOfDPUs; i++) {
+            dpuBuffer[i] = new uint8_t[MaxBufferSizePerDPU];
+        }
     }
 
     internal_timer timer;
