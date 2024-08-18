@@ -186,7 +186,7 @@ class DirectPIMInterface : public PIMInterface {
                 __builtin_prefetch(ptr_dest + offset + 0x40 * 7);
 
                 LoadData(cache_line, ptr_dest + offset);
-                byte_interleave_avx2(cache_line, cache_line_interleave);
+                byte_interleave_avx512(cache_line, cache_line_interleave, false);
                 for (int j = 0; j < 8; j++) {
                     if (buffers[j * 8 + dpu_id] == nullptr) {
                         continue;
@@ -197,7 +197,7 @@ class DirectPIMInterface : public PIMInterface {
 
                 offset += 0x40;
                 LoadData(cache_line, ptr_dest + offset);
-                byte_interleave_avx2(cache_line, cache_line_interleave);
+                byte_interleave_avx512(cache_line, cache_line_interleave, false);
                 for (int j = 0; j < 8; j++) {
                     if (buffers[j * 8 + dpu_id + 4] == nullptr) {
                         continue;
@@ -265,7 +265,6 @@ class DirectPIMInterface : public PIMInterface {
                 return false;
             }
         }
-
         return true;
     }
 
@@ -495,48 +494,31 @@ class DirectPIMInterface : public PIMInterface {
     }
 
    private:
-    void byte_interleave_avx2(uint64_t *input, uint64_t *output) {
-        __m256i tm = _mm256_set_epi8(
-            15, 11, 7, 3, 14, 10, 6, 2, 13, 9, 5, 1, 12, 8, 4, 0,
+    void byte_interleave_avx512(uint64_t *input, uint64_t *output, bool use_stream)
+    {
+        __m512i load = _mm512_loadu_si512(input);
 
-            15, 11, 7, 3, 14, 10, 6, 2, 13, 9, 5, 1, 12, 8, 4, 0);
-        char *src1 = (char *)input, *dst1 = (char *)output;
+        // LEVEL 0
+        __m512i vindex = _mm512_setr_epi32(0, 2, 4, 6, 8, 10, 12, 14, 1, 3, 5, 7, 9, 11, 13, 15);
+        __m512i gathered = _mm512_permutexvar_epi32(vindex, load);
 
-        __m256i vindex = _mm256_setr_epi32(0, 8, 16, 24, 32, 40, 48, 56);
-        __m256i perm = _mm256_setr_epi32(0, 4, 1, 5, 2, 6, 3, 7);
+        // LEVEL 1
+        __m512i mask = _mm512_set_epi64(0x0f0b07030e0a0602ULL,
+            0x0d0905010c080400ULL,
 
-        __m256i load0 = _mm256_i32gather_epi32((int *)src1, vindex, 1);
-        __m256i load1 = _mm256_i32gather_epi32((int *)(src1 + 4), vindex, 1);
+            0x0f0b07030e0a0602ULL,
+            0x0d0905010c080400ULL,
 
-        __m256i transpose0 = _mm256_shuffle_epi8(load0, tm);
-        __m256i transpose1 = _mm256_shuffle_epi8(load1, tm);
+            0x0f0b07030e0a0602ULL,
+            0x0d0905010c080400ULL,
 
-        __m256i final0 = _mm256_permutevar8x32_epi32(transpose0, perm);
-        __m256i final1 = _mm256_permutevar8x32_epi32(transpose1, perm);
+            0x0f0b07030e0a0602ULL,
+            0x0d0905010c080400ULL);
 
-        _mm256_storeu_si256((__m256i *)&dst1[0], final0);
-        _mm256_storeu_si256((__m256i *)&dst1[32], final1);
-    }
+        __m512i transpose = _mm512_shuffle_epi8(gathered, mask);
 
-    void byte_interleave_avx512(uint64_t *input, uint64_t *output,
-                                bool use_stream) {
-        __m512i mask;
-
-        mask = _mm512_set_epi64(0x0f0b07030e0a0602ULL, 0x0d0905010c080400ULL,
-
-                                0x0f0b07030e0a0602ULL, 0x0d0905010c080400ULL,
-
-                                0x0f0b07030e0a0602ULL, 0x0d0905010c080400ULL,
-
-                                0x0f0b07030e0a0602ULL, 0x0d0905010c080400ULL);
-
-        __m512i vindex = _mm512_setr_epi32(0, 8, 16, 24, 32, 40, 48, 56, 4, 12,
-                                           20, 28, 36, 44, 52, 60);
-        __m512i perm = _mm512_setr_epi32(0, 4, 1, 5, 2, 6, 3, 7, 8, 12, 9, 13,
-                                         10, 14, 11, 15);
-
-        __m512i load = _mm512_i32gather_epi32(vindex, input, 1);
-        __m512i transpose = _mm512_shuffle_epi8(load, mask);
+        // LEVEL 2
+        __m512i perm = _mm512_setr_epi32(0, 4, 1, 5, 2, 6, 3, 7, 8, 12, 9, 13, 10, 14, 11, 15);
         __m512i final = _mm512_permutexvar_epi32(perm, transpose);
 
         if (use_stream) {

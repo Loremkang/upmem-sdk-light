@@ -100,8 +100,8 @@ void TestMRAMThroughput(PIMInterface *interface,
                 cout << "Buffer size: " << setw(10) << bufferSizePerDPU
                      << " bytes, Repeat: " << setw(10) << repeat
                      << ", Time: " << setw(10) << timer.total_time
-                     << " seconds, Bandwidth per DPU: " << setw(10) << bandwidthPerDPU
-                     << " seconds, Total Bandwidth: " << setw(10) << bandwidth
+                     << " seconds, Bandwidth per DPU: " << setw(20) << bandwidthPerDPU
+                     << " seconds, Total Bandwidth: " << setw(20) << bandwidth
                      << " bytes/second" << endl;
 
                 break;
