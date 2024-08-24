@@ -222,6 +222,18 @@ class DirectPIMInterface : public PIMInterface {
                 }
             }
         }
+
+        for (uint32_t dpu_id = 0; dpu_id < 4; ++dpu_id) {
+            for (uint32_t i = 0; i < length / sizeof(uint64_t); ++i) {
+                // 8 shards of DPUs
+                uint64_t offset =
+                    GetCorrectOffsetMRAM(symbol_offset + (i * 8), dpu_id);
+                __builtin_ia32_clflushopt((void *)(ptr_dest + offset));
+                offset += 0x40;
+                __builtin_ia32_clflushopt((void *)(ptr_dest + offset));
+            }
+        }
+        __builtin_ia32_mfence();
     }
 
     void SendToRankMRAM(uint8_t **buffers, uint32_t symbol_offset,
