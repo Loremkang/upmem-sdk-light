@@ -197,8 +197,14 @@ class DirectPIMInterface : public PIMInterface {
                 }
                 uint64_t offset =
                     GetCorrectOffsetMRAM(symbol_offset + (i * 8), dpu_id);
-                __builtin_prefetch(ptr_dest + offset + 0x40 * 6);
-                __builtin_prefetch(ptr_dest + offset + 0x40 * 7);
+                if (i + 3 < length / sizeof(uint64_t)) {
+                    uint64_t offset_prefetch = GetCorrectOffsetMRAM(
+                        symbol_offset + ((i + 3) * 8), dpu_id);
+                    __builtin_prefetch(ptr_dest + offset_prefetch);
+                    __builtin_prefetch(ptr_dest + offset_prefetch + 0x40);
+                }
+                // __builtin_prefetch(ptr_dest + offset + 0x40 * 6);
+                // __builtin_prefetch(ptr_dest + offset + 0x40 * 7);
 
                 LoadData(cache_line, ptr_dest + offset);
                 byte_interleave_avx512(cache_line, cache_line_interleave, false);
