@@ -5,6 +5,7 @@
 #include <iomanip>  // Add this line at the top of your file if it's not already there
 #include <iostream>
 #include <string>
+#include <sys/mman.h>
 #include <numa.h>
 
 #include "pim_interface_header.hpp"
@@ -50,8 +51,8 @@ void parse_arguments(int argc, char **argv, int &nr_ranks,
 void TestMRAMThroughput(PIMInterface *interface,
                         CommunicationDirection direction) {
     const int MinBufferSizePerDPU = 1 << 10;
-    const int MaxBufferSizePerDPU = 1 << 20;
-    double timeLimitPerTest = 2.0;  // 2 seconds
+    const int MaxBufferSizePerDPU = 2 << 20;
+    double timeLimitPerTest = 2.0;  // 4 seconds
 
     int nrOfDPUs = interface->GetNrOfDPUs();
 
@@ -63,46 +64,72 @@ void TestMRAMThroughput(PIMInterface *interface,
         for (int i = 0; i < nrOfDPUs; i ++) {
             // dpuBuffer[i] = (uint8_t*)numa_alloc_onnode(MaxBufferSizePerDPU, interface_ptr->GetNUMAIDOfDPU(i));
             // printf("Allocate Buffer %d on NUMA %d\n", i, interface_ptr->GetNUMAIDOfDPU(i));
-            dpuBuffer[i] = new uint8_t[MaxBufferSizePerDPU];
+            // dpuBuffer[i] = new uint8_t[MaxBufferSizePerDPU];
+            assert((MaxBufferSizePerDPU & 0x1FFFFF) == 0);
+            void* ptr = aligned_alloc(1l << 21, MaxBufferSizePerDPU);                                                                                   
+            madvise(ptr, MaxBufferSizePerDPU, MADV_NOHUGEPAGE);
+            dpuBuffer[i] = (uint8_t*)ptr;
         }
     } else {
         assert(dynamic_cast<UPMEMInterface *>(interface) != nullptr);
         for (int i = 0; i < nrOfDPUs; i++) {
-            dpuBuffer[i] = new uint8_t[MaxBufferSizePerDPU];
+            // dpuBuffer[i] = new uint8_t[MaxBufferSizePerDPU];
+            assert((MaxBufferSizePerDPU & 0x1FFFFF) == 0);
+            void* ptr = aligned_alloc(1l << 21, MaxBufferSizePerDPU);
+            madvise(ptr, MaxBufferSizePerDPU, MADV_NOHUGEPAGE);
+            dpuBuffer[i] = (uint8_t*)ptr;
         }
     }
+
+    auto get_value = [&](size_t i, size_t j, uint64_t repeat) {
+        assert(i < (1 << 12));
+        assert(j < (1 << 30));
+        assert(repeat < (1 << 20));
+        uint64_t combine = (i << 50) | (j << 20) | repeat;
+        uint64_t val = parlay::hash64(combine);
+        uint8_t ret = (uint8_t)(val & 0xff);
+        return ret;
+    };
 
     internal_timer timer;
     for (size_t bufferSizePerDPU = MinBufferSizePerDPU;
          bufferSizePerDPU <= MaxBufferSizePerDPU;
          bufferSizePerDPU <<= 1) {
         timer.reset();
-        for (uint64_t repeat = 0; true; repeat++) {
+        for (size_t repeat = 0; true; repeat++) {
+
             parlay::parallel_for(0, nrOfDPUs, [&](size_t i) {
                 parlay::parallel_for(0, bufferSizePerDPU, [&](size_t j) {
-                    dpuBuffer[i][j] = (uint8_t)j ^ 0x3f ^ repeat;
+                    dpuBuffer[i][j] = get_value(i, j, repeat);
                 });
             });
 
-            timer.start();
-            if (direction == CommunicationDirection::Host2PIM) {
-                // CPU -> PIM.MRAM : Supported by both direct and UPMEM
-                // interface.
-                interface->SendToPIM(dpuBuffer, DPU_MRAM_HEAP_POINTER_NAME, 0,
-                                     bufferSizePerDPU, false);
-            } else {
-                // PIM.MRAM -> CPU : Supported by both direct and UPMEM
-                // interface.
-                interface->ReceiveFromPIM(dpuBuffer, DPU_MRAM_HEAP_POINTER_NAME,
-                                          0, bufferSizePerDPU, false);
+            if(direction == CommunicationDirection::Host2PIM) {
+                timer.start();
             }
-            timer.end();
+            // CPU -> PIM.MRAM : Supported by both direct and UPMEM interface.
+            interface->SendToPIM(dpuBuffer, DPU_MRAM_HEAP_POINTER_NAME, 0,
+                                 bufferSizePerDPU, false);
+            if(direction == CommunicationDirection::Host2PIM) {
+                timer.end();
+            }
 
-            // parlay::parallel_for(0, nrOfDPUs, [&](size_t i) {
-            //     parlay::parallel_for(0, bufferSizePerDPU, [&](size_t j) {
-            //         assert(dpuBuffer[i][j] == ((uint8_t)j ^ 0x3f ^ repeat));
-            //     });
-            // });
+            interface->Launch(false);
+
+            if (direction == CommunicationDirection::PIM2Host) {
+                timer.start();
+            }
+            interface->ReceiveFromPIM(dpuBuffer, DPU_MRAM_HEAP_POINTER_NAME, 0,
+                                      bufferSizePerDPU, false);
+            if (direction == CommunicationDirection::PIM2Host) {
+                timer.end();
+            }
+
+            parlay::parallel_for(0, nrOfDPUs, [&](size_t i) {
+                parlay::parallel_for(0, bufferSizePerDPU, [&](size_t j) {
+                    assert(dpuBuffer[i][j] == get_value(i, j, repeat));
+                });
+            });
 
             if (timer.total_time > timeLimitPerTest) {
                 double bandwidthPerDPU =
