@@ -14,21 +14,19 @@ const uint32_t DPU_PER_RANK = 64;
 const uint64_t MRAM_SIZE = (64 << 20);
 
 class PIMInterface {
-   protected:
+public:
     virtual void load_from_dpu_set(dpu_set_t dpu_set) {
         this->dpu_set = dpu_set;
         DPU_ASSERT(dpu_get_nr_dpus(dpu_set, &this->nr_of_dpus));
         DPU_ASSERT(dpu_get_nr_ranks(dpu_set, &this->nr_of_ranks));
-        std::printf("Allocated %d DPU(s)\n", this->nr_of_dpus);
-        std::printf("Allocated %d Ranks(s)\n", this->nr_of_ranks);
+        std::printf("Interface detected %d DPU(s)\n", this->nr_of_dpus);
+        std::printf("Interface detected %d Ranks(s)\n", this->nr_of_ranks);
         assert(this->nr_of_dpus <= nr_of_ranks * DPU_PER_RANK);
     }
 
-   public:
-    PIMInterface(uint32_t nr_of_ranks, std::string binary) {
+    PIMInterface(uint32_t nr_of_ranks, std::string binary): free_dpu_set_when_delete(true) {
         dpu_set_t dpu_set;
-        DPU_ASSERT(
-            dpu_alloc_ranks(nr_of_ranks, "nrThreadsPerRank=1", &dpu_set));
+        DPU_ASSERT(dpu_alloc_ranks(nr_of_ranks, "nrThreadsPerRank=1", &dpu_set));
         DPU_ASSERT(dpu_load(dpu_set, binary.c_str(), NULL));
         load_from_dpu_set(dpu_set);
         if (nr_of_ranks != DPU_ALLOCATE_ALL) {
@@ -36,8 +34,7 @@ class PIMInterface {
         }
     }
 
-    //
-    PIMInterface(dpu_set_t dpu_set) { load_from_dpu_set(dpu_set); }
+    PIMInterface(dpu_set_t dpu_set): free_dpu_set_when_delete(true) { load_from_dpu_set(dpu_set); }
 
     virtual void Launch(bool async) = 0;
 
@@ -53,31 +50,31 @@ class PIMInterface {
         }
     }
 
-    virtual void SendToPIM(uint8_t** buffers, std::string symbol_name,
+    virtual void SendToPIM(uint8_t** buffers, uint32_t buffer_offset, std::string symbol_name,
                            uint32_t symbol_offset, uint32_t length,
                            bool async) = 0;
-    virtual void ReceiveFromPIM(uint8_t** buffers, std::string symbol_name,
+    virtual void ReceiveFromPIM(uint8_t** buffers, uint32_t buffer_offset, std::string symbol_name,
                                 uint32_t symbol_offset, uint32_t length,
                                 bool async) = 0;
 
-    void SendToPIMByUPMEM(uint8_t** buffers, std::string symbol_name,
+    void SendToPIMByUPMEM(uint8_t** buffers, uint32_t buffer_offset, std::string symbol_name,
                           uint32_t symbol_offset, uint32_t length,
                           bool async_transfer) {
         // Please make sure buffers don't overflow
         DPU_FOREACH(dpu_set, dpu, each_dpu) {
-            DPU_ASSERT(dpu_prepare_xfer(dpu, buffers[each_dpu]));
+            DPU_ASSERT(dpu_prepare_xfer(dpu, buffers[each_dpu] + buffer_offset));
         }
         auto sync_setup = async_transfer ? DPU_XFER_ASYNC : DPU_XFER_DEFAULT;
         DPU_ASSERT(dpu_push_xfer(dpu_set, DPU_XFER_TO_DPU, symbol_name.c_str(),
                                  symbol_offset, length, sync_setup));
     }
 
-    void ReceiveFromPIMByUPMEM(uint8_t** buffers, std::string symbol_name,
+    void ReceiveFromPIMByUPMEM(uint8_t** buffers, uint32_t buffer_offset, std::string symbol_name,
                                uint32_t symbol_offset, uint32_t length,
                                bool async_transfer) {
         // Please make sure buffers don't overflow
         DPU_FOREACH(dpu_set, dpu, each_dpu) {
-            DPU_ASSERT(dpu_prepare_xfer(dpu, buffers[each_dpu]));
+            DPU_ASSERT(dpu_prepare_xfer(dpu, buffers[each_dpu] + buffer_offset));
         }
         auto sync_setup = async_transfer ? DPU_XFER_ASYNC : DPU_XFER_DEFAULT;
         DPU_ASSERT(dpu_push_xfer(dpu_set, DPU_XFER_FROM_DPU,
@@ -87,18 +84,22 @@ class PIMInterface {
 
     ~PIMInterface() {
         if (nr_of_ranks > 0) {
-            DPU_ASSERT(dpu_free(dpu_set));
+            if(free_dpu_set_when_delete) DPU_ASSERT(dpu_free(dpu_set));
             nr_of_ranks = nr_of_dpus = 0;
         }
     }
 
-   public:
+public:
     uint32_t GetNrOfRanks() const { return nr_of_ranks; }
 
     uint32_t GetNrOfDPUs() const { return nr_of_dpus; }
 
-   protected:
+    void do_not_free_dpu_set_when_delete() { free_dpu_set_when_delete = false; }
+
+protected:
     dpu_set_t dpu_set, dpu;
     uint32_t each_dpu;
     uint32_t nr_of_ranks, nr_of_dpus;
+
+    bool free_dpu_set_when_delete;
 };

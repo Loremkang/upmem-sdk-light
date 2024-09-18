@@ -422,7 +422,7 @@ class DirectPIMInterface : public PIMInterface {
         // }
     }
 
-    void ReceiveFromPIM(uint8_t **buffers, std::string symbol_name,
+    void ReceiveFromPIM(uint8_t **buffers, uint32_t buffer_offset, std::string symbol_name,
                         uint32_t symbol_offset, uint32_t length,
                         bool async_transfer) {
         // Please make sure buffers don't overflow
@@ -431,16 +431,16 @@ class DirectPIMInterface : public PIMInterface {
         uint32_t symbol_base_offset = GetSymbolOffset(symbol_name);
 
         // Skip disabled PIM modules
-        uint8_t *buffers_alligned[MAX_NR_RANKS * MAX_NR_DPUS_PER_RANK];
+        uint8_t *buffers_aligned[MAX_NR_RANKS * MAX_NR_DPUS_PER_RANK];
         {
             uint32_t offset = 0;
             for (uint32_t i = 0; i < nr_of_ranks; i++) {
                 for (int j = 0; j < MAX_NR_DPUS_PER_RANK; j++) {
                     if (ranks[i]->dpus[j].enabled) {
-                        buffers_alligned[i * MAX_NR_DPUS_PER_RANK + j] =
-                            buffers[offset++];
+                        buffers_aligned[i * MAX_NR_DPUS_PER_RANK + j] =
+                            buffers[offset++] + buffer_offset;
                     } else {
-                        buffers_alligned[i * MAX_NR_DPUS_PER_RANK + j] =
+                        buffers_aligned[i * MAX_NR_DPUS_PER_RANK + j] =
                             nullptr;
                     }
                 }
@@ -451,15 +451,15 @@ class DirectPIMInterface : public PIMInterface {
         if (symbol_base_offset & MRAM_ADDRESS_SPACE) {  // receive from mram
             // Only support heap pointer at present
             assert(symbol_name == DPU_MRAM_HEAP_POINTER_NAME);
-            ReceiveFromMRAM(buffers_alligned, symbol_base_offset, symbol_offset,
+            ReceiveFromMRAM(buffers_aligned, symbol_base_offset, symbol_offset,
                             length, async_transfer);
         } else {  // receive from wram
-            ReceiveFromWRAM(buffers_alligned, symbol_base_offset, symbol_offset,
+            ReceiveFromWRAM(buffers_aligned, symbol_base_offset, symbol_offset,
                             length, async_transfer);
         }
     }
 
-    void SendToPIM(uint8_t **buffers, std::string symbol_name,
+    void SendToPIM(uint8_t **buffers, uint32_t buffer_offset, std::string symbol_name,
                    uint32_t symbol_offset, uint32_t length,
                    bool async_transfer) {
         // Please make sure buffers don't overflow
@@ -469,16 +469,16 @@ class DirectPIMInterface : public PIMInterface {
         symbol_offset += GetSymbolOffset(symbol_name) ^ MRAM_ADDRESS_SPACE;
 
         // Skip disabled PIM modules
-        uint8_t *buffers_alligned[MAX_NR_RANKS * MAX_NR_DPUS_PER_RANK];
+        uint8_t *buffers_aligned[MAX_NR_RANKS * MAX_NR_DPUS_PER_RANK];
         {
             uint32_t offset = 0;
             for (uint32_t i = 0; i < nr_of_ranks; i++) {
                 for (int j = 0; j < MAX_NR_DPUS_PER_RANK; j++) {
                     if (ranks[i]->dpus[j].enabled) {
-                        buffers_alligned[i * MAX_NR_DPUS_PER_RANK + j] =
-                            buffers[offset++];
+                        buffers_aligned[i * MAX_NR_DPUS_PER_RANK + j] =
+                            buffers[offset++] + buffer_offset;
                     } else {
-                        buffers_alligned[i * MAX_NR_DPUS_PER_RANK + j] =
+                        buffers_aligned[i * MAX_NR_DPUS_PER_RANK + j] =
                             nullptr;
                     }
                 }
@@ -488,7 +488,7 @@ class DirectPIMInterface : public PIMInterface {
 
         auto SendToIthRank = [&](size_t i) {
             DPU_ASSERT(dpu_switch_mux_for_rank(ranks[i], true));
-            SendToRankMRAM(&buffers_alligned[i * MAX_NR_DPUS_PER_RANK],
+            SendToRankMRAM(&buffers_aligned[i * MAX_NR_DPUS_PER_RANK],
                            symbol_offset, base_addrs[i], length);
         };
 

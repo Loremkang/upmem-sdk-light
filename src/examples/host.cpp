@@ -21,12 +21,12 @@ int main() {
     }
 
     // CPU -> PIM.WRAM : Not supported by direct interface. Use UPMEM interface.
-    pimInterface.SendToPIMByUPMEM(dpuIDs, "DPU_ID", 0, sizeof(uint64_t), false);
+    pimInterface.SendToPIMByUPMEM(dpuIDs, 0, "DPU_ID", 0, sizeof(uint64_t), false);
     // following command will cause an error.
     // pimInterface.SendToPIM(dpuIDs, "DPU_ID", 0, sizeof(uint64_t), false);
 
     // PIM.WRAM -> CPU : Supported by both direct and UPMEM interface.
-    pimInterface.ReceiveFromPIM(dpuIDs, "DPU_ID", 0, sizeof(uint64_t), false);
+    pimInterface.ReceiveFromPIM(dpuIDs, 0, "DPU_ID", 0, sizeof(uint64_t), false);
     for (int i = 0; i < nr_of_dpus; i++) {
         uint64_t *id = (uint64_t *)dpuIDs[i];
         assert(*id == (uint64_t)i);
@@ -44,10 +44,10 @@ int main() {
     });
 
     // CPU -> PIM.MRAM : Supported by both direct and UPMEM interface.
-    pimInterface.SendToPIM(dpuBuffer, DPU_MRAM_HEAP_POINTER_NAME, 0, BUFFER_SIZE, false);
+    pimInterface.SendToPIM(dpuBuffer, 0, DPU_MRAM_HEAP_POINTER_NAME, 0, BUFFER_SIZE, false);
 
     // PIM.MRAM -> CPU : Supported by both direct and UPMEM interface.
-    pimInterface.ReceiveFromPIM(dpuBuffer, DPU_MRAM_HEAP_POINTER_NAME, 0, BUFFER_SIZE, false);
+    pimInterface.ReceiveFromPIM(dpuBuffer, 0, DPU_MRAM_HEAP_POINTER_NAME, 0, BUFFER_SIZE, false);
 
     parlay::parallel_for(0, nr_of_dpus, [&](size_t i) {
         parlay::parallel_for(0, BUFFER_SIZE, [&](size_t j) {

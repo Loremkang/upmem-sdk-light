@@ -106,7 +106,7 @@ void TestMRAMThroughput(PIMInterface *interface,
 
             send_timer.start();
             // CPU -> PIM.MRAM : Supported by both direct and UPMEM interface.
-            interface->SendToPIM(dpuBuffer, DPU_MRAM_HEAP_POINTER_NAME, 0,
+            interface->SendToPIM(dpuBuffer, 0, DPU_MRAM_HEAP_POINTER_NAME, 0,
                                  bufferSizePerDPU, false);
             
             send_timer.end();
@@ -122,7 +122,7 @@ void TestMRAMThroughput(PIMInterface *interface,
             CheckFlushCache(flush_cache, bufferSizePerDPU);
 
             recv_timer.start();
-            interface->ReceiveFromPIM(dpuBuffer, DPU_MRAM_HEAP_POINTER_NAME, 0,
+            interface->ReceiveFromPIM(dpuBuffer, 0, DPU_MRAM_HEAP_POINTER_NAME, 0,
                                       bufferSizePerDPU, false);
             recv_timer.end();
 
@@ -190,13 +190,13 @@ int main(int argc, char **argv) {
     }
 
     // CPU -> PIM.WRAM : Not supported by direct interface. Use UPMEM interface.
-    pimInterface->SendToPIMByUPMEM(dpuIDs, "DPU_ID", 0, sizeof(uint64_t),
+    pimInterface->SendToPIMByUPMEM(dpuIDs, 0, "DPU_ID", 0, sizeof(uint64_t),
                                    false);
     // following command will cause an error.
     // pimInterface.SendToPIM(dpuIDs, "DPU_ID", 0, sizeof(uint64_t), false);
 
     // PIM.WRAM -> CPU : Supported by both direct and UPMEM interface.
-    pimInterface->ReceiveFromPIM(dpuIDs, "DPU_ID", 0, sizeof(uint64_t), false);
+    pimInterface->ReceiveFromPIM(dpuIDs, 0, "DPU_ID", 0, sizeof(uint64_t), false);
     for (int i = 0; i < nrOfDPUs; i++) {
         uint64_t *id = (uint64_t *)dpuIDs[i];
         assert(*id == (uint64_t)i);
