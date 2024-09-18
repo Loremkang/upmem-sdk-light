@@ -156,18 +156,6 @@ class DirectPIMInterface : public PIMInterface {
 
         uint64_t cache_line[8], cache_line_interleave[8];
 
-        for (uint32_t dpu_id = 0; dpu_id < 4; ++dpu_id) {
-            for (uint32_t i = 0; i < length / sizeof(uint64_t); ++i) {
-                // 8 shards of DPUs
-                uint64_t offset =
-                    GetCorrectOffsetMRAM(symbol_offset + (i * 8), dpu_id);
-                __builtin_ia32_clflushopt((void *)(ptr_dest + offset));
-                offset += 0x40;
-                __builtin_ia32_clflushopt((void *)(ptr_dest + offset));
-            }
-        }
-        __builtin_ia32_mfence();
-
         auto LoadData = [](uint64_t *cache_line, uint8_t *ptr_dest) {
             cache_line[0] = *((volatile uint64_t *)((uint8_t *)ptr_dest +
                                                     0 * sizeof(uint64_t)));
