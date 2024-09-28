@@ -1,0 +1,161 @@
+Interface detected 2048 DPU(s)
+Interface detected 32 Ranks(s)
+Rank 0 is on channel 1 on numa node 0
+Rank 1 is on channel 1 on numa node 0
+Rank 2 is on channel 4 on numa node 1
+Rank 3 is on channel 4 on numa node 1
+Rank 4 is on channel 5 on numa node 1
+Rank 5 is on channel 5 on numa node 1
+Rank 6 is on channel 5 on numa node 1
+Rank 7 is on channel 5 on numa node 1
+Rank 8 is on channel 7 on numa node 2
+Rank 9 is on channel 7 on numa node 2
+Rank 10 is on channel 7 on numa node 2
+Rank 11 is on channel 7 on numa node 2
+Rank 12 is on channel 1 on numa node 0
+Rank 13 is on channel 9 on numa node 2
+Rank 14 is on channel 9 on numa node 2
+Rank 15 is on channel 9 on numa node 2
+Rank 16 is on channel 9 on numa node 2
+Rank 17 is on channel 11 on numa node 3
+Rank 18 is on channel 11 on numa node 3
+Rank 19 is on channel 11 on numa node 3
+Rank 20 is on channel 11 on numa node 3
+Rank 21 is on channel 12 on numa node 3
+Rank 22 is on channel 12 on numa node 3
+Rank 23 is on channel 1 on numa node 0
+Rank 24 is on channel 12 on numa node 3
+Rank 25 is on channel 12 on numa node 3
+Rank 26 is on channel 2 on numa node 0
+Rank 27 is on channel 2 on numa node 0
+Rank 28 is on channel 2 on numa node 0
+Rank 29 is on channel 2 on numa node 0
+Rank 30 is on channel 4 on numa node 1
+Rank 31 is on channel 4 on numa node 1
+*** 0 ***
+=== DPU#0x30000000 ===
+HEAP POINTER ADDR: 0x100000
+DPU ID is 0!
+DPU ID is at 0x1f0!
+*** 100 ***
+=== DPU#0x30010404 ===
+HEAP POINTER ADDR: 0x100000
+DPU ID is 100!
+DPU ID is at 0x1f0!
+*** 200 ***
+=== DPU#0x300b0100 ===
+HEAP POINTER ADDR: 0x100000
+DPU ID is 200!
+DPU ID is at 0x1f0!
+*** 300 ***
+=== DPU#0x300c0504 ===
+HEAP POINTER ADDR: 0x100000
+DPU ID is 300!
+DPU ID is at 0x1f0!
+*** 400 ***
+=== DPU#0x300e0200 ===
+HEAP POINTER ADDR: 0x100000
+DPU ID is 400!
+DPU ID is at 0x1f0!
+*** 500 ***
+=== DPU#0x300f0604 ===
+HEAP POINTER ADDR: 0x100000
+DPU ID is 500!
+DPU ID is at 0x1f0!
+*** 600 ***
+=== DPU#0x30110300 ===
+HEAP POINTER ADDR: 0x100000
+DPU ID is 600!
+DPU ID is at 0x1f0!
+*** 700 ***
+=== DPU#0x30120704 ===
+HEAP POINTER ADDR: 0x100000
+DPU ID is 700!
+DPU ID is at 0x1f0!
+*** 800 ***
+=== DPU#0x30020400 ===
+HEAP POINTER ADDR: 0x100000
+DPU ID is 800!
+DPU ID is at 0x1f0!
+*** 900 ***
+=== DPU#0x30150004 ===
+HEAP POINTER ADDR: 0x100000
+DPU ID is 900!
+DPU ID is at 0x1f0!
+*** 1000 ***
+=== DPU#0x30160500 ===
+HEAP POINTER ADDR: 0x100000
+DPU ID is 1000!
+DPU ID is at 0x1f0!
+*** 1100 ***
+=== DPU#0x30180104 ===
+HEAP POINTER ADDR: 0x100000
+DPU ID is 1100!
+DPU ID is at 0x1f0!
+*** 1200 ***
+=== DPU#0x30190600 ===
+HEAP POINTER ADDR: 0x100000
+DPU ID is 1200!
+DPU ID is at 0x1f0!
+*** 1300 ***
+=== DPU#0x301b0204 ===
+HEAP POINTER ADDR: 0x100000
+DPU ID is 1300!
+DPU ID is at 0x1f0!
+*** 1400 ***
+=== DPU#0x301c0700 ===
+HEAP POINTER ADDR: 0x100000
+DPU ID is 1400!
+DPU ID is at 0x1f0!
+*** 1500 ***
+=== DPU#0x30030304 ===
+HEAP POINTER ADDR: 0x100000
+DPU ID is 1500!
+DPU ID is at 0x1f0!
+*** 1600 ***
+=== DPU#0x301f0000 ===
+HEAP POINTER ADDR: 0x100000
+DPU ID is 1600!
+DPU ID is at 0x1f0!
+*** 1700 ***
+=== DPU#0x30040404 ===
+HEAP POINTER ADDR: 0x100000
+DPU ID is 1700!
+DPU ID is at 0x1f0!
+*** 1800 ***
+=== DPU#0x30060100 ===
+HEAP POINTER ADDR: 0x100000
+DPU ID is 1800!
+DPU ID is at 0x1f0!
+*** 1900 ***
+=== DPU#0x30070504 ===
+HEAP POINTER ADDR: 0x100000
+DPU ID is 1900!
+DPU ID is at 0x1f0!
+*** 2000 ***
+=== DPU#0x30090200 ===
+HEAP POINTER ADDR: 0x100000
+DPU ID is 2000!
+DPU ID is at 0x1f0!
+Total Buffer size:  6396 KB, Test Buffer Size:     1 KB, Repeat:  10974, Send Time:    1.000 s, Recv Time:    2.305 s, Total Time:   39.135 s, Send BW:   21.433 GB/s, Recv BW:    9.298 GB/s, Send Lat: 9.11268e-05 s, Recv Lat: 0.000210063 s
+Total Buffer size:  6396 KB, Test Buffer Size:     2 KB, Repeat:   6442, Send Time:    1.000 s, Recv Time:    2.062 s, Total Time:   24.944 s, Send BW:   25.164 GB/s, Recv BW:   12.204 GB/s, Send Lat: 0.000155232 s, Recv Lat: 0.000320077 s
+Total Buffer size:  6396 KB, Test Buffer Size:     4 KB, Repeat:   3326, Send Time:    1.000 s, Recv Time:    1.809 s, Total Time:   15.153 s, Send BW:   25.982 GB/s, Recv BW:   14.361 GB/s, Send Lat: 0.000300689 s, Recv Lat: 0.000544006 s
+Total Buffer size:  6396 KB, Test Buffer Size:     8 KB, Repeat:   1784, Send Time:    1.000 s, Recv Time:    1.732 s, Total Time:   10.338 s, Send BW:   27.872 GB/s, Recv BW:   16.093 GB/s, Send Lat: 0.000560601 s, Recv Lat: 0.000970922 s
+Total Buffer size:  6396 KB, Test Buffer Size:    16 KB, Repeat:    935, Send Time:    1.001 s, Recv Time:    1.684 s, Total Time:    8.268 s, Send BW:   29.189 GB/s, Recv BW:   17.354 GB/s, Send Lat: 0.00107062 s, Recv Lat: 0.00180072 s
+Total Buffer size:  6396 KB, Test Buffer Size:    32 KB, Repeat:    500, Send Time:    1.103 s, Recv Time:    1.940 s, Total Time:    7.594 s, Send BW:   28.321 GB/s, Recv BW:   16.112 GB/s, Send Lat: 0.00220686 s, Recv Lat: 0.00387904 s
+Total Buffer size:  6396 KB, Test Buffer Size:    64 KB, Repeat:    425, Send Time:    2.004 s, Recv Time:    3.613 s, Total Time:   13.085 s, Send BW:   26.510 GB/s, Recv BW:   14.703 GB/s, Send Lat: 0.00471527 s, Recv Lat: 0.00850164 s
+Total Buffer size:  6396 KB, Test Buffer Size:   128 KB, Repeat:    214, Send Time:    2.002 s, Recv Time:    3.892 s, Total Time:   13.660 s, Send BW:   26.722 GB/s, Recv BW:   13.746 GB/s, Send Lat: 0.0093557 s, Recv Lat: 0.0181867 s
+Total Buffer size:  6396 KB, Test Buffer Size:   256 KB, Repeat:     98, Send Time:    2.006 s, Recv Time:    4.007 s, Total Time:   13.770 s, Send BW:   24.423 GB/s, Recv BW:   12.228 GB/s, Send Lat: 0.0204724 s, Recv Lat: 0.0408908 s
+Total Buffer size:  6396 KB, Test Buffer Size:   512 KB, Repeat:     44, Send Time:    2.005 s, Recv Time:    4.090 s, Total Time:   13.976 s, Send BW:   21.948 GB/s, Recv BW:   10.758 GB/s, Send Lat: 0.0455616 s, Recv Lat: 0.092952 s
+Total Buffer size:  6396 KB, Test Buffer Size:  1024 KB, Repeat:     19, Send Time:    2.106 s, Recv Time:    4.224 s, Total Time:   14.510 s, Send BW:   18.043 GB/s, Recv BW:    8.997 GB/s, Send Lat: 0.110845 s, Recv Lat: 0.222295 s
+Total Buffer size:  6396 KB, Test Buffer Size:     1 KB, Repeat:  11070, Send Time:    1.000 s, Recv Time:    2.308 s, Total Time:   39.375 s, Send BW:   21.620 GB/s, Recv BW:    9.369 GB/s, Send Lat: 9.03375e-05 s, Recv Lat: 0.000208468 s
+Total Buffer size:  6396 KB, Test Buffer Size:     2 KB, Repeat:   6418, Send Time:    1.000 s, Recv Time:    2.052 s, Total Time:   24.780 s, Send BW:   25.070 GB/s, Recv BW:   12.218 GB/s, Send Lat: 0.000155814 s, Recv Lat: 0.000319711 s
+Total Buffer size:  6396 KB, Test Buffer Size:     4 KB, Repeat:   3321, Send Time:    1.000 s, Recv Time:    1.813 s, Total Time:   15.115 s, Send BW:   25.943 GB/s, Recv BW:   14.308 GB/s, Send Lat: 0.000301137 s, Recv Lat: 0.00054604 s
+Total Buffer size:  6396 KB, Test Buffer Size:     8 KB, Repeat:   1770, Send Time:    1.000 s, Recv Time:    1.712 s, Total Time:   10.204 s, Send BW:   27.653 GB/s, Recv BW:   16.153 GB/s, Send Lat: 0.000565033 s, Recv Lat: 0.000967295 s
+Total Buffer size:  6396 KB, Test Buffer Size:    16 KB, Repeat:    914, Send Time:    1.000 s, Recv Time:    1.656 s, Total Time:    8.024 s, Send BW:   28.551 GB/s, Recv BW:   17.245 GB/s, Send Lat: 0.00109454 s, Recv Lat: 0.00181209 s
+Total Buffer size:  6396 KB, Test Buffer Size:    32 KB, Repeat:    500, Send Time:    1.122 s, Recv Time:    1.912 s, Total Time:    7.643 s, Send BW:   27.854 GB/s, Recv BW:   16.342 GB/s, Send Lat: 0.00224383 s, Recv Lat: 0.00382452 s
+Total Buffer size:  6396 KB, Test Buffer Size:    64 KB, Repeat:    424, Send Time:    2.002 s, Recv Time:    3.547 s, Total Time:   13.012 s, Send BW:   26.472 GB/s, Recv BW:   14.944 GB/s, Send Lat: 0.00472189 s, Recv Lat: 0.00836447 s
+Total Buffer size:  6396 KB, Test Buffer Size:   128 KB, Repeat:    211, Send Time:    2.001 s, Recv Time:    3.830 s, Total Time:   13.533 s, Send BW:   26.357 GB/s, Recv BW:   13.772 GB/s, Send Lat: 0.00948516 s, Recv Lat: 0.0181533 s
+Total Buffer size:  6396 KB, Test Buffer Size:   256 KB, Repeat:     95, Send Time:    2.021 s, Recv Time:    3.889 s, Total Time:   13.520 s, Send BW:   23.504 GB/s, Recv BW:   12.213 GB/s, Send Lat: 0.0212726 s, Recv Lat: 0.0409386 s
+Total Buffer size:  6396 KB, Test Buffer Size:   512 KB, Repeat:     43, Send Time:    2.014 s, Recv Time:    4.063 s, Total Time:   13.852 s, Send BW:   21.352 GB/s, Recv BW:   10.583 GB/s, Send Lat: 0.0468333 s, Recv Lat: 0.0944901 s
+Total Buffer size:  6396 KB, Test Buffer Size:  1024 KB, Repeat:     19, Send Time:    2.055 s, Recv Time:    4.314 s, Total Time:   14.629 s, Send BW:   18.495 GB/s, Recv BW:    8.809 GB/s, Send Lat: 0.108139 s, Recv Lat: 0.227033 s
