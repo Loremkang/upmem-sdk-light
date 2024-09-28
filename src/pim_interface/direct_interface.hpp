@@ -527,7 +527,7 @@ class DirectPIMInterface : public PIMInterface {
         return rankIDOfDPU[dpu_id];
     }
 
-    ~DirectPIMInterface() {
+    virtual ~DirectPIMInterface() {
         if (ranks != nullptr) {
             delete[] ranks;
         }

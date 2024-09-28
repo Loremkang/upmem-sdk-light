@@ -50,7 +50,7 @@ target_compile_options(example PUBLIC -Wall -Wextra -O3 -g -std=c++17 -march=nat
 set_target_properties(example PROPERTIES PUBLIC_HEADER ${CMAKE_CURRENT_SOURCE_DIR}/upmem_direct_c.h)
 
 # dpu part for example
-set(DPU_PROGRAM_NAME dpu)
+set(EXAMPLE_DPU_PROGRAM_NAME dpu_example)
 set(UPMEM_C_COMPILER ${UPMEM_SDK_DIR}/bin/dpu-upmem-dpurte-clang)
 
 if(NOT NR_TASKLETS)
@@ -58,11 +58,11 @@ if(NOT NR_TASKLETS)
   message(WARNING "NR_TASKLETS is " ${NR_TASKLETS})
 endif()
 
-add_custom_target(${DPU_PROGRAM_NAME} ALL
+add_custom_target(${EXAMPLE_DPU_PROGRAM_NAME} ALL
     COMMAND ${UPMEM_C_COMPILER} -O3 -fgnu89-inline
             -DNR_TASKLETS=${NR_TASKLETS}
             -DSTACK_SIZE_DEFAULT=2048
-            ${EXAMPLE_DIR}/dpu.c -o ${EXECUTABLE_OUTPUT_PATH}/${DPU_PROGRAM_NAME}
+            ${EXAMPLE_DIR}/dpu.c -o ${EXECUTABLE_OUTPUT_PATH}/${EXAMPLE_DPU_PROGRAM_NAME}
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     VERBATIM)
 
@@ -77,3 +77,20 @@ target_link_libraries(benchmark PUBLIC -lnuma)
 target_link_libraries(benchmark PUBLIC Threads::Threads)
 target_compile_options(benchmark PUBLIC -Wall -Wextra -O3 -g -std=c++17 -march=native)
 set_target_properties(benchmark PROPERTIES PUBLIC_HEADER ${CMAKE_CURRENT_SOURCE_DIR}/upmem_direct_c.h)
+
+# dpu part for benchmark
+set(BENCHMARK_DPU_PROGRAM_NAME dpu_benchmark)
+set(UPMEM_C_COMPILER ${UPMEM_SDK_DIR}/bin/dpu-upmem-dpurte-clang)
+
+if(NOT NR_TASKLETS)
+  set(NR_TASKLETS 12)
+  message(WARNING "NR_TASKLETS is " ${NR_TASKLETS})
+endif()
+
+add_custom_target(${BENCHMARK_DPU_PROGRAM_NAME} ALL
+    COMMAND ${UPMEM_C_COMPILER} -O3 -fgnu89-inline
+            -DNR_TASKLETS=${NR_TASKLETS}
+            -DSTACK_SIZE_DEFAULT=2048
+            ${BENCHMARK_DIR}/dpu.c -o ${EXECUTABLE_OUTPUT_PATH}/${BENCHMARK_DPU_PROGRAM_NAME}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    VERBATIM)

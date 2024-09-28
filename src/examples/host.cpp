@@ -9,7 +9,7 @@ int main() {
     const int NR_RANKS = 10;
 
     // To Allocate: identify the number of RANKS you want, or use DPU_ALLOCATE_ALL to allocate all possible.
-    DirectPIMInterface pimInterface(NR_RANKS, "dpu");
+    DirectPIMInterface pimInterface(NR_RANKS, "dpu_example");
     // DirectPIMInterface pimInterface(DPU_ALLOCATE_ALL, "dpu");
 
     int nr_of_dpus = pimInterface.GetNrOfDPUs();

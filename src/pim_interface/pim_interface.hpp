@@ -82,7 +82,7 @@ public:
                                  sync_setup));
     }
 
-    ~PIMInterface() {
+    virtual ~PIMInterface() {
         if (nr_of_ranks > 0) {
             if(free_dpu_set_when_delete) DPU_ASSERT(dpu_free(dpu_set));
             nr_of_ranks = nr_of_dpus = 0;

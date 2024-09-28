@@ -7,6 +7,7 @@
 #include <string>
 #include <sys/mman.h>
 
+#include "common.h"
 #include "pim_interface_header.hpp"
 #include "timer.hpp"
 using namespace std;
@@ -35,7 +36,7 @@ void parse_arguments(int argc, char **argv, int &nr_ranks,
 }
 
 void TestMRAMThroughput(PIMInterface *interface,
-                        size_t MaxBufferSizePerDPU, bool flush_cache, bool no_huge_page) {
+                        size_t MaxBufferSizePerDPU) {
     const size_t MinTestSizePerDPU = 1 << 10;
     const size_t MaxTestSizePerDPU = std::min((size_t)1 << 20, MaxBufferSizePerDPU);
     const double timeLimitPerTest = 2.0;  // 2 seconds
@@ -47,9 +48,7 @@ void TestMRAMThroughput(PIMInterface *interface,
     size_t buffer_size = MaxBufferSizePerDPU * nrOfDPUs;
     size_t cacheline_size = 64;
     uint8_t *buffer = (uint8_t *)aligned_alloc(1l << 21, buffer_size);
-    if (no_huge_page) {
-        madvise(buffer, buffer_size, MADV_NOHUGEPAGE);
-    }
+    // madvise(buffer, buffer_size, MADV_HUGEPAGE);
 
     uint8_t **dpuBuffer = new uint8_t *[nrOfDPUs];
 
@@ -70,20 +69,6 @@ void TestMRAMThroughput(PIMInterface *interface,
         return val;
     };
 
-    auto CheckFlushCache = [&](bool flush_cache, size_t size) {
-        if (!flush_cache) {
-            return;
-        }
-        while (size % cacheline_size != 0) {
-            size++;
-        }
-        parlay::parallel_for(0, nrOfDPUs, [&](size_t dpu_id) {
-            for (size_t i = 0; i < size; i += cacheline_size) {
-                __builtin_ia32_clflushopt(dpuBuffer[dpu_id] + i);
-            }
-        });
-    };
-
     internal_timer send_timer, recv_timer, total_timer;
     for (size_t bufferSizePerDPU = MinTestSizePerDPU;
          bufferSizePerDPU <= MaxTestSizePerDPU; bufferSizePerDPU <<= 1) {
@@ -102,8 +87,6 @@ void TestMRAMThroughput(PIMInterface *interface,
                 });
             });
 
-            CheckFlushCache(flush_cache, bufferSizePerDPU);
-
             send_timer.start();
             // CPU -> PIM.MRAM : Supported by both direct and UPMEM interface.
             interface->SendToPIM(dpuBuffer, 0, DPU_MRAM_HEAP_POINTER_NAME, 0,
@@ -119,17 +102,27 @@ void TestMRAMThroughput(PIMInterface *interface,
                 });
             });
             
-            CheckFlushCache(flush_cache, bufferSizePerDPU);
-
             recv_timer.start();
+            // PIM.MRAM -> CPU : Supported by both direct and UPMEM interface.
             interface->ReceiveFromPIM(dpuBuffer, 0, DPU_MRAM_HEAP_POINTER_NAME, 0,
                                       bufferSizePerDPU, false);
             recv_timer.end();
 
+            // for (size_t i = 0; i < nrOfDPUs; i ++) {
+            //     for (size_t j = 0; j < bufferSizePerDPU / 8; j ++) {
+            //         uint64_t* ptr = (uint64_t*)(dpuBuffer[i] + j * 8);
+            //         assert(*ptr == get_value(i, j, repeat) + ((i << 48) + j));
+            //     }
+            // }
             parlay::parallel_for(0, nrOfDPUs, [&](size_t i) {
                 parlay::parallel_for(0, bufferSizePerDPU / 8, [&](size_t j) {
                     uint64_t* ptr = (uint64_t*)(dpuBuffer[i] + j * 8);
-                    assert(*ptr == get_value(i, j, repeat));
+                    if (j % 256 == 0) {
+                        assert(*ptr == get_value(i, j, repeat) + ((i << 48) + j));
+                    } else {
+                        assert(*ptr == get_value(i, j, repeat));
+                    }
+                    
                 });
             });
 
@@ -146,15 +139,16 @@ void TestMRAMThroughput(PIMInterface *interface,
                                            nrOfDPUs / recv_timer.total_time;
 
                 printf(
-                    "CLFLUSH: %s, Total Buffer size: %5lu KB, Test Buffer "
-                    "Size: %5lu KB, Repeat: %6lu, Send Time: %5lf s, Recv "
-                    "Time: %5lf s, Total Time: %5lf s, "
-                    "Send BW: %5lf GB/s, Recv BW: %5lf GB/s\n",
-                    flush_cache ? "T" : "F", MaxBufferSizePerDPU / 1024,
+                    "Total Buffer size: %5lu KB, Test Buffer "
+                    "Size: %5lu KB, Repeat: %6lu, Send Time: %8.3lf s, Recv "
+                    "Time: %8.3lf s, Total Time: %8.3lf s, "
+                    "Send BW: %8.3lf GB/s, Recv BW: %8.3lf GB/s, Send Lat: %5g s, Recv Lat: %5g s\n",
+                    MaxBufferSizePerDPU / 1024,
                     bufferSizePerDPU / 1024, repeat, send_timer.total_time,
                     recv_timer.total_time, total_timer.total_time,
                     send_bandwidth / 1024.0 / 1024.0 / 1024.0,
-                    receive_bandwidth / 1024.0 / 1024.0 / 1024.0);
+                    receive_bandwidth / 1024.0 / 1024.0 / 1024.0,
+                    send_timer.total_time / repeat, recv_timer.total_time / repeat);
 
                 break;
             }
@@ -175,9 +169,9 @@ int main(int argc, char **argv) {
     // DPU_ALLOCATE_ALL to allocate all possible.
     PIMInterface *pimInterface;
     if (interfaceType == "direct") {
-        pimInterface = new DirectPIMInterface(nr_ranks, "dpu");
+        pimInterface = new DirectPIMInterface(nr_ranks, "dpu_benchmark");
     } else {
-        pimInterface = new UPMEMInterface(nr_ranks, "dpu");
+        pimInterface = new UPMEMInterface(nr_ranks, "dpu_benchmark");
     }
     // DirectPIMInterface pimInterface(DPU_ALLOCATE_ALL, "dpu");
 
@@ -206,8 +200,8 @@ int main(int argc, char **argv) {
     pimInterface->Launch(false);
     pimInterface->PrintLog([](int i) { return (i % 100) == 0; });
 
-    TestMRAMThroughput(pimInterface, (6400 - 4) << 10, false, false);
-    TestMRAMThroughput(pimInterface, (6400 - 4) << 10, true, false);
+    TestMRAMThroughput(pimInterface, (6400 - 4) << 10);
+    TestMRAMThroughput(pimInterface, (6400 - 4) << 10);
 
     for (int i = 0; i < nrOfDPUs; i++) {
         delete[] dpuIDs[i];
